@@ -35,6 +35,9 @@ Both clients should connect to the same authoritative DB (`rpg-raid-shop-dev`) a
 ### Lifecycle commands
 
 - `cargo dev-up` starts/uses local DB, publishes module, and regenerates Rust bindings.
+- `cargo dev-up` uses a persistent local data directory by default: `target/dev/spacetime-data`.
 - `cargo dev-client [Guest]` runs the client with an optional guest name.
   - Examples: `cargo dev-client 1`, `cargo dev-client Guest_A`
 - `cargo dev-down` stops the managed DB process started by `cargo dev-up`.
+
+To override DB storage location, set `SPACETIME_DATA_DIR`.

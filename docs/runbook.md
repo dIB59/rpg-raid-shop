@@ -22,6 +22,9 @@ From the project root, use the lifecycle commands:
 1. Bring up local DB + publish module + generate bindings:
    - `cargo dev-up`
 
+By default, local DB data is persistent at `target/dev/spacetime-data`.
+Override with `SPACETIME_DATA_DIR` if needed.
+
 When finished, stop the managed local DB process:
 
 - `cargo dev-down`
@@ -37,6 +40,11 @@ If needed, you can run pieces separately with `cargo db-publish` and `cargo db-g
 Tip: inspect effective DB config with:
 
 `cargo db-config`
+
+If you want a clean local DB state, stop it and remove the data directory:
+
+1. `cargo dev-down`
+2. `rm -rf target/dev/spacetime-data`
 
 ## Development flow
 

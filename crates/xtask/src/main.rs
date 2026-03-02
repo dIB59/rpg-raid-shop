@@ -8,6 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const DEFAULT_SPACETIME_URI: &str = "http://127.0.0.1:3000";
 const DEFAULT_SPACETIME_DB: &str = "rpg-raid-shop-dev";
 const DEFAULT_WASM_PATH: &str = "target/wasm32-unknown-unknown/release/spacetimedb_module.wasm";
+const DEFAULT_SPACETIME_DATA_DIR: &str = "target/dev/spacetime-data";
 
 fn main() -> ExitCode {
     if let Err(error) = run() {
@@ -83,13 +84,17 @@ fn run_client(repo_root: &Path, args: &[String]) -> Result<(), String> {
 
 fn db_start(repo_root: &Path) -> Result<(), String> {
     let spacetime = spacetime_bin()?;
+    let data_dir = spacetime_data_dir(repo_root);
+    fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
+
     run_command(
         Command::new(spacetime)
             .current_dir(repo_root)
             .arg("start")
             .arg("--listen-addr")
             .arg("0.0.0.0:3000")
-            .arg("--in-memory")
+            .arg("--data-dir")
+            .arg(data_dir)
             .arg("--non-interactive"),
     )
 }
@@ -180,11 +185,13 @@ fn db_config(repo_root: &Path) -> Result<(), String> {
     let db = env_or_default("SPACETIME_DB", DEFAULT_SPACETIME_DB);
     let uri = env_or_default("SPACETIME_URI", DEFAULT_SPACETIME_URI);
     let wasm_path = env_or_default("WASM_PATH", DEFAULT_WASM_PATH);
+    let data_dir = spacetime_data_dir(repo_root);
 
     println!("SPACETIME_BIN={spacetime}");
     println!("SPACETIME_URI={uri}");
     println!("SPACETIME_DB={db}");
     println!("WASM_PATH={wasm_path}");
+    println!("SPACETIME_DATA_DIR={data_dir}");
     println!("REPO_ROOT={}", repo_root.display());
 
     Ok(())
@@ -209,6 +216,7 @@ fn client_run(repo_root: &Path, guest_name: &str) -> Result<(), String> {
 fn ensure_db_running_background(repo_root: &Path) -> Result<(), String> {
     let spacetime = spacetime_bin()?;
     let uri = env_or_default("SPACETIME_URI", DEFAULT_SPACETIME_URI);
+    let data_dir = spacetime_data_dir(repo_root);
     let (host, port) = host_port_from_uri(&uri)?;
 
     if is_port_open(&host, port) {
@@ -217,6 +225,7 @@ fn ensure_db_running_background(repo_root: &Path) -> Result<(), String> {
     }
 
     let run_dir = repo_root.join("target/dev");
+    fs::create_dir_all(Path::new(&data_dir)).map_err(|error| error.to_string())?;
     fs::create_dir_all(&run_dir).map_err(|error| error.to_string())?;
     let log_file_path = run_dir.join("spacetime.log");
     let log_file = OpenOptions::new()
@@ -231,7 +240,8 @@ fn ensure_db_running_background(repo_root: &Path) -> Result<(), String> {
         .arg("start")
         .arg("--listen-addr")
         .arg("0.0.0.0:3000")
-        .arg("--in-memory")
+        .arg("--data-dir")
+        .arg(&data_dir)
         .arg("--non-interactive")
         .stdout(Stdio::from(log_file))
         .stderr(Stdio::from(log_file_err))
@@ -245,8 +255,9 @@ fn ensure_db_running_background(repo_root: &Path) -> Result<(), String> {
     for _ in 0..40 {
         if is_port_open(&host, port) {
             println!(
-                "Started SpacetimeDB in background (pid={pid}) at {host}:{port}; logs: {}",
-                log_file_path.display()
+                "Started SpacetimeDB in background (pid={pid}) at {host}:{port}; logs: {}; data: {}",
+                log_file_path.display(),
+                data_dir
             );
             return Ok(());
         }
@@ -257,6 +268,13 @@ fn ensure_db_running_background(repo_root: &Path) -> Result<(), String> {
         "SpacetimeDB did not become ready at {host}:{port}; check logs at {}",
         log_file_path.display()
     ))
+}
+
+fn spacetime_data_dir(repo_root: &Path) -> String {
+    env::var("SPACETIME_DATA_DIR")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| repo_root.join(DEFAULT_SPACETIME_DATA_DIR).display().to_string())
 }
 
 fn pid_file(repo_root: &Path) -> PathBuf {

@@ -66,7 +66,9 @@ Hint: run `cargo db-start` and `cargo db-sync`, then relaunch the client."
             )
         });
 
-    let subscription = connection.subscription_builder().subscribe_to_all_tables();
+    let subscription = connection
+        .subscription_builder()
+        .subscribe("SELECT * FROM player");
     connection
         .reducers
         .connect_guest(guest_name.clone())
