@@ -1,0 +1,12 @@
+[alias]
+dev-up = "run -p xtask -- dev-up"
+dev-client = "run -p xtask -- dev-client"
+dev-down = "run -p xtask -- dev-down"
+db-start = "run -p xtask -- db start"
+db-publish = "run -p xtask -- db publish"
+db-generate = "run -p xtask -- db generate"
+db-sync = "run -p xtask -- db sync"
+db-config = "run -p xtask -- db config"
+client = "run -p xtask -- client run"
+client-a = "run -p xtask -- client run Guest_A"
+client-b = "run -p xtask -- client run Guest_B"

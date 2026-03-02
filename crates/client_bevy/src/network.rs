@@ -3,10 +3,12 @@ use spacetimedb_sdk::{DbContext, Table};
 use std::env;
 
 use crate::module_bindings::{
-    self, PlayerTableAccess, connect_guest_reducer::connect_guest,
-    move_self_reducer::move_self,
+    self, PlayerTableAccess, connect_guest_reducer::connect_guest, move_self_reducer::move_self,
 };
 use shared::{MovementIntent, PlayerId, PlayerState, Vec2f};
+
+const DEFAULT_SPACETIME_URI: &str = "http://127.0.0.1:3000";
+const DEFAULT_SPACETIME_DB: &str = "rpg-raid-shop-dev";
 
 #[derive(Resource, Default)]
 pub struct NetworkSnapshot {
@@ -43,25 +45,34 @@ impl Plugin for NetworkPlugin {
 }
 
 fn bootstrap_live_connection(mut commands: Commands, mut snapshot: ResMut<NetworkSnapshot>) {
-    let uri = env::var("SPACETIME_URI").unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+    let uri = env::var("SPACETIME_URI").unwrap_or_else(|_| DEFAULT_SPACETIME_URI.to_string());
     let database_name =
-        env::var("SPACETIME_DB").unwrap_or_else(|_| "rpg-raid-shop-local".to_string());
+        env::var("SPACETIME_DB").unwrap_or_else(|_| DEFAULT_SPACETIME_DB.to_string());
     let guest_name = env::var("SPACETIME_GUEST").unwrap_or_else(|_| {
         let process_id = std::process::id();
         format!("Guest_{process_id}")
     });
 
+    info!("Connecting client: uri={uri}, db={database_name}, guest={guest_name}");
+
     let connection = module_bindings::DbConnection::builder()
-        .with_uri(uri)
-        .with_database_name(database_name)
+        .with_uri(&uri)
+        .with_database_name(&database_name)
         .build()
-        .expect("failed to connect to SpacetimeDB");
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to connect to SpacetimeDB (uri={uri}, db={database_name}). error={error}. \
+Hint: run `cargo db-start` and `cargo db-sync`, then relaunch the client."
+            )
+        });
 
     let subscription = connection.subscription_builder().subscribe_to_all_tables();
     connection
         .reducers
-        .connect_guest(guest_name)
-        .expect("failed to call connect_guest reducer");
+        .connect_guest(guest_name.clone())
+        .unwrap_or_else(|error| {
+            panic!("failed to call connect_guest reducer for guest={guest_name}. error={error}")
+        });
 
     connection.run_threaded();
 

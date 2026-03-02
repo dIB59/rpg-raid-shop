@@ -47,20 +47,21 @@ fn ensure_local_player_square(
         return;
     }
 
-    commands.spawn((
-        Name::new("LocalPlayer"),
-        LocalPlayerVisual,
-        Sprite::from_color(player_color(local_player.id), Vec2::splat(24.0)),
-        Transform::from_xyz(0.0, 0.0, 10.0),
-    ))
-    .with_children(|parent| {
-        parent.spawn((
-            Name::new("LocalPlayerOutline"),
-            LocalPlayerOutline,
-            Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
-            Transform::from_xyz(0.0, 0.0, -0.1),
-        ));
-    });
+    commands
+        .spawn((
+            Name::new("LocalPlayer"),
+            LocalPlayerVisual,
+            Sprite::from_color(player_color(local_player.id), Vec2::splat(24.0)),
+            Transform::from_xyz(0.0, 0.0, 10.0),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Name::new("LocalPlayerOutline"),
+                LocalPlayerOutline,
+                Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
+                Transform::from_xyz(0.0, 0.0, -0.1),
+            ));
+        });
 }
 
 fn sync_local_player_transform(

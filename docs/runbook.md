@@ -11,24 +11,46 @@ Add SpacetimeDB CLI to your `PATH` in shell config:
 
 `export PATH="$HOME/.local/bin:$PATH"`
 
+Optional: copy `.env.dev.example` to `.env.dev` and customize values:
+
+`cp .env.dev.example .env.dev`
+
 ## Start authoritative server
 
-From the project root:
+From the project root, use the lifecycle commands:
 
-1. Start local SpacetimeDB node (host machine):
-	- `spacetime start --listen-addr 0.0.0.0:3000 --in-memory --non-interactive`
-2. Publish module:
-	- `spacetime publish rpg-raid-shop -s http://127.0.0.1:3000 --anonymous -y --module-path crates/spacetimedb_module`
-3. Generate/update Rust client bindings:
-	- `spacetime generate --lang rust --out-dir crates/client_bevy/src/module_bindings --bin-path target/wasm32-unknown-unknown/release/spacetimedb_module.wasm -y`
+1. Bring up local DB + publish module + generate bindings:
+   - `cargo dev-up`
+
+When finished, stop the managed local DB process:
+
+- `cargo dev-down`
+
+Run a client with an optional guest name:
+
+- `cargo dev-client`
+- `cargo dev-client Guest_A`
+- `cargo dev-client Guest_B`
+
+If needed, you can run pieces separately with `cargo db-publish` and `cargo db-generate`.
+
+Tip: inspect effective DB config with:
+
+`cargo db-config`
 
 ## Development flow
 
 1. On desktop A (or server host), run the authoritative server steps above.
 2. On each desktop client, point to the same server + DB:
-	- `SPACETIME_URI=http://<SERVER_IP>:3000 SPACETIME_DB=rpg-raid-shop SPACETIME_GUEST=Guest_A cargo run -p client_bevy`
-	- `SPACETIME_URI=http://<SERVER_IP>:3000 SPACETIME_DB=rpg-raid-shop SPACETIME_GUEST=Guest_B cargo run -p client_bevy`
+   - `SPACETIME_URI=http://<SERVER_IP>:3000 SPACETIME_DB=rpg-raid-shop-dev SPACETIME_GUEST=Guest_A cargo run -p client_bevy`
+   - `SPACETIME_URI=http://<SERVER_IP>:3000 SPACETIME_DB=rpg-raid-shop-dev SPACETIME_GUEST=Guest_B cargo run -p client_bevy`
 3. Move each client with `WASD`; positions should update on both desktops via SpacetimeDB.
+
+### Local single-machine quick test
+
+1. Terminal 1: `cargo dev-up`
+2. Terminal 2: `cargo dev-client Guest_A`
+3. Terminal 3: `cargo dev-client Guest_B`
 
 ## Quality checks
 

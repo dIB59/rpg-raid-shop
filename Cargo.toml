@@ -3,6 +3,7 @@ members = [
   "crates/client_bevy",
   "crates/shared",
   "crates/spacetimedb_module",
+  "crates/xtask",
 ]
 resolver = "2"
 
