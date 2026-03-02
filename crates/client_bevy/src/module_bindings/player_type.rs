@@ -9,6 +9,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub struct Player {
     pub id: u64,
     pub identity: __sdk::Identity,
+    pub connection_id: __sdk::ConnectionId,
     pub name: String,
     pub x: f32,
     pub y: f32,
@@ -24,6 +25,7 @@ impl __sdk::InModule for Player {
 pub struct PlayerCols {
     pub id: __sdk::__query_builder::Col<Player, u64>,
     pub identity: __sdk::__query_builder::Col<Player, __sdk::Identity>,
+    pub connection_id: __sdk::__query_builder::Col<Player, __sdk::ConnectionId>,
     pub name: __sdk::__query_builder::Col<Player, String>,
     pub x: __sdk::__query_builder::Col<Player, f32>,
     pub y: __sdk::__query_builder::Col<Player, f32>,
@@ -35,6 +37,7 @@ impl __sdk::__query_builder::HasCols for Player {
         PlayerCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
             identity: __sdk::__query_builder::Col::new(table_name, "identity"),
+            connection_id: __sdk::__query_builder::Col::new(table_name, "connection_id"),
             name: __sdk::__query_builder::Col::new(table_name, "name"),
             x: __sdk::__query_builder::Col::new(table_name, "x"),
             y: __sdk::__query_builder::Col::new(table_name, "y"),
@@ -46,16 +49,16 @@ impl __sdk::__query_builder::HasCols for Player {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct PlayerIxCols {
+    pub connection_id: __sdk::__query_builder::IxCol<Player, __sdk::ConnectionId>,
     pub id: __sdk::__query_builder::IxCol<Player, u64>,
-    pub identity: __sdk::__query_builder::IxCol<Player, __sdk::Identity>,
 }
 
 impl __sdk::__query_builder::HasIxCols for Player {
     type IxCols = PlayerIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         PlayerIxCols {
+            connection_id: __sdk::__query_builder::IxCol::new(table_name, "connection_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
-            identity: __sdk::__query_builder::IxCol::new(table_name, "identity"),
         }
     }
 }

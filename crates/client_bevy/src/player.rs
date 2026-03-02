@@ -7,6 +7,9 @@ use crate::network::NetworkSnapshot;
 #[derive(Component)]
 struct LocalPlayerVisual;
 
+#[derive(Component)]
+struct LocalPlayerOutline;
+
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct RemotePlayerVisual {
     id: PlayerId,
@@ -36,29 +39,42 @@ fn ensure_local_player_square(
     snapshot: Res<NetworkSnapshot>,
     existing: Query<Entity, With<LocalPlayerVisual>>,
 ) {
-    if snapshot.local_player.is_none() || !existing.is_empty() {
+    let Some(local_player) = &snapshot.local_player else {
+        return;
+    };
+
+    if !existing.is_empty() {
         return;
     }
 
     commands.spawn((
         Name::new("LocalPlayer"),
         LocalPlayerVisual,
-        Sprite::from_color(Color::srgb(0.2, 0.9, 0.3), Vec2::splat(24.0)),
+        Sprite::from_color(player_color(local_player.id), Vec2::splat(24.0)),
         Transform::from_xyz(0.0, 0.0, 10.0),
-    ));
+    ))
+    .with_children(|parent| {
+        parent.spawn((
+            Name::new("LocalPlayerOutline"),
+            LocalPlayerOutline,
+            Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
+            Transform::from_xyz(0.0, 0.0, -0.1),
+        ));
+    });
 }
 
 fn sync_local_player_transform(
     snapshot: Res<NetworkSnapshot>,
-    mut query: Query<&mut Transform, With<LocalPlayerVisual>>,
+    mut query: Query<(&mut Transform, &mut Sprite), With<LocalPlayerVisual>>,
 ) {
     let Some(local_state) = &snapshot.local_player else {
         return;
     };
 
-    for mut transform in &mut query {
+    for (mut transform, mut sprite) in &mut query {
         transform.translation.x = local_state.position.x;
         transform.translation.y = local_state.position.y;
+        sprite.color = player_color(local_state.id);
     }
 }
 
@@ -95,7 +111,7 @@ fn sync_remote_player_squares(
             RemotePlayerVisual {
                 id: remote_state.id,
             },
-            Sprite::from_color(Color::srgb(0.2, 0.5, 0.95), Vec2::splat(24.0)),
+            Sprite::from_color(player_color(remote_state.id), Vec2::splat(24.0)),
             Transform::from_xyz(remote_state.position.x, remote_state.position.y, 10.0),
         ));
     }
@@ -105,4 +121,20 @@ fn sync_remote_player_squares(
             commands.entity(entity).despawn();
         }
     }
+}
+
+fn player_color(player_id: PlayerId) -> Color {
+    const PALETTE: [Color; 8] = [
+        Color::srgb(0.90, 0.35, 0.35),
+        Color::srgb(0.35, 0.75, 0.95),
+        Color::srgb(0.35, 0.85, 0.45),
+        Color::srgb(0.95, 0.75, 0.30),
+        Color::srgb(0.80, 0.45, 0.95),
+        Color::srgb(0.30, 0.90, 0.85),
+        Color::srgb(0.95, 0.55, 0.20),
+        Color::srgb(0.55, 0.65, 0.95),
+    ];
+
+    let index = (player_id.0 as usize) % PALETTE.len();
+    PALETTE[index]
 }

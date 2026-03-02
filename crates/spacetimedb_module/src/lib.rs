@@ -1,4 +1,4 @@
-use spacetimedb::{Identity, Query, ReducerContext, Table, ViewContext};
+use spacetimedb::{ConnectionId, Identity, Query, ReducerContext, Table, ViewContext};
 
 const PLAYER_SPEED_UNITS_PER_SEC: f32 = 180.0;
 const MAX_SIMULATION_STEP_SECONDS: f32 = 0.1;
@@ -8,8 +8,9 @@ pub struct Player {
     #[auto_inc]
     #[primary_key]
     pub id: u64,
-    #[unique]
     pub identity: Identity,
+    #[unique]
+    pub connection_id: ConnectionId,
     pub name: String,
     pub x: f32,
     pub y: f32,
@@ -22,7 +23,9 @@ pub fn client_connected(ctx: &ReducerContext) {
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn client_disconnected(ctx: &ReducerContext) {
-    ctx.db.player().identity().delete(ctx.sender());
+    if let Some(connection_id) = ctx.connection_id() {
+        ctx.db.player().connection_id().delete(connection_id);
+    }
 }
 
 #[spacetimedb::reducer]
@@ -39,11 +42,15 @@ pub fn move_self(
     direction_y: f32,
     delta_seconds: f32,
 ) -> Result<(), String> {
+    let connection_id = ctx
+        .connection_id()
+        .ok_or_else(|| "missing connection id for caller".to_string())?;
+
     let mut row = ctx
         .db
         .player()
-        .identity()
-        .find(ctx.sender())
+        .connection_id()
+        .find(connection_id)
         .ok_or_else(|| "player not registered, call connect_guest first".to_string())?;
 
     let clamped_dt = delta_seconds.clamp(0.0, MAX_SIMULATION_STEP_SECONDS);
@@ -64,10 +71,15 @@ pub fn players_snapshot(ctx: &ViewContext) -> impl Query<Player> {
 }
 
 fn ensure_player_exists(ctx: &ReducerContext, name: String) {
-    if let Some(existing) = ctx.db.player().identity().find(ctx.sender()) {
+    let Some(connection_id) = ctx.connection_id() else {
+        return;
+    };
+
+    if let Some(existing) = ctx.db.player().connection_id().find(connection_id) {
         ctx.db.player().id().update(Player {
             id: existing.id,
             identity: existing.identity,
+            connection_id: existing.connection_id,
             name,
             x: existing.x,
             y: existing.y,
@@ -78,6 +90,7 @@ fn ensure_player_exists(ctx: &ReducerContext, name: String) {
     ctx.db.player().insert(Player {
         id: 0,
         identity: ctx.sender(),
+        connection_id,
         name,
         x: 0.0,
         y: 0.0,

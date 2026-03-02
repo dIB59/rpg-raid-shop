@@ -21,8 +21,8 @@ struct LiveConnection {
 }
 
 #[derive(Resource)]
-struct LocalIdentity {
-    identity: spacetimedb_sdk::Identity,
+struct LocalConnectionId {
+    connection_id: spacetimedb_sdk::ConnectionId,
 }
 
 pub struct NetworkPlugin;
@@ -35,7 +35,7 @@ impl Plugin for NetworkPlugin {
                 Update,
                 (
                     send_local_intent_to_server,
-                    poll_local_identity,
+                    poll_local_connection_id,
                     pull_snapshot_from_server,
                 ),
             );
@@ -45,7 +45,7 @@ impl Plugin for NetworkPlugin {
 fn bootstrap_live_connection(mut commands: Commands, mut snapshot: ResMut<NetworkSnapshot>) {
     let uri = env::var("SPACETIME_URI").unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
     let database_name =
-        env::var("SPACETIME_DB").unwrap_or_else(|_| "rpg-raid-shop".to_string());
+        env::var("SPACETIME_DB").unwrap_or_else(|_| "rpg-raid-shop-local".to_string());
     let guest_name = env::var("SPACETIME_GUEST").unwrap_or_else(|_| {
         let process_id = std::process::id();
         format!("Guest_{process_id}")
@@ -104,10 +104,10 @@ fn send_local_intent_to_server(
     );
 }
 
-fn poll_local_identity(
+fn poll_local_connection_id(
     mut commands: Commands,
     live: Option<Res<LiveConnection>>,
-    existing: Option<Res<LocalIdentity>>,
+    existing: Option<Res<LocalConnectionId>>,
 ) {
     if existing.is_some() {
         return;
@@ -117,14 +117,14 @@ fn poll_local_identity(
         return;
     };
 
-    if let Some(identity) = live.connection.try_identity() {
-        commands.insert_resource(LocalIdentity { identity });
+    if let Some(connection_id) = live.connection.try_connection_id() {
+        commands.insert_resource(LocalConnectionId { connection_id });
     }
 }
 
 fn pull_snapshot_from_server(
     live: Option<Res<LiveConnection>>,
-    local_identity: Option<Res<LocalIdentity>>,
+    local_connection_id: Option<Res<LocalConnectionId>>,
     mut snapshot: ResMut<NetworkSnapshot>,
 ) {
     let Some(live) = live else {
@@ -146,12 +146,12 @@ fn pull_snapshot_from_server(
         })
         .collect();
 
-    let local_player_id = local_identity.and_then(|identity| {
+    let local_player_id = local_connection_id.and_then(|local_connection_id| {
         live.connection
             .db
             .player()
-            .identity()
-            .find(&identity.identity)
+            .connection_id()
+            .find(&local_connection_id.connection_id)
             .map(|player| PlayerId(player.id))
     });
 
