@@ -39,7 +39,10 @@ impl PrototypeModule {
         let direction = intent.direction.normalize_or_zero();
         let delta = direction.scaled(speed * clamped_dt);
 
-        let row = self.players.iter_mut().find(|player| player.identity == identity)?;
+        let row = self
+            .players
+            .iter_mut()
+            .find(|player| player.identity == identity)?;
         row.state.position.x += delta.x;
         row.state.position.y += delta.y;
 

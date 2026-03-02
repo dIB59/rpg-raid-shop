@@ -39,7 +39,10 @@ fn simulate_authoritative_echo(time: Res<Time>, mut snapshot: ResMut<NetworkSnap
     };
 
     if let Some(remote) = snapshot.remote_players.first_mut() {
-        let delta = intent.direction.normalize_or_zero().scaled(speed * intent.delta_seconds);
+        let delta = intent
+            .direction
+            .normalize_or_zero()
+            .scaled(speed * intent.delta_seconds);
         remote.position.x += delta.x;
         if remote.position.x > 240.0 {
             remote.position.x = -240.0;
