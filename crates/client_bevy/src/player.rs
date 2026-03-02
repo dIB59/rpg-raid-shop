@@ -1,16 +1,29 @@
 use bevy::prelude::*;
+use shared::PlayerId;
+use std::collections::{HashMap, HashSet};
 
 use crate::network::NetworkSnapshot;
 
 #[derive(Component)]
-struct LocalPlayer;
+struct LocalPlayerVisual;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct RemotePlayerVisual {
+    id: PlayerId,
+}
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_camera, spawn_local_player))
-            .add_systems(Update, sync_local_player_transform);
+        app.add_systems(Startup, spawn_camera).add_systems(
+            Update,
+            (
+                ensure_local_player_square,
+                sync_local_player_transform,
+                sync_remote_player_squares,
+            ),
+        );
     }
 }
 
@@ -18,17 +31,26 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
-fn spawn_local_player(mut commands: Commands) {
+fn ensure_local_player_square(
+    mut commands: Commands,
+    snapshot: Res<NetworkSnapshot>,
+    existing: Query<Entity, With<LocalPlayerVisual>>,
+) {
+    if snapshot.local_player.is_none() || !existing.is_empty() {
+        return;
+    }
+
     commands.spawn((
-        LocalPlayer,
-        Transform::from_xyz(0.0, 0.0, 100.0),
-        GlobalTransform::default(),
+        Name::new("LocalPlayer"),
+        LocalPlayerVisual,
+        Sprite::from_color(Color::srgb(0.2, 0.9, 0.3), Vec2::splat(24.0)),
+        Transform::from_xyz(0.0, 0.0, 10.0),
     ));
 }
 
 fn sync_local_player_transform(
     snapshot: Res<NetworkSnapshot>,
-    mut query: Query<&mut Transform, With<LocalPlayer>>,
+    mut query: Query<&mut Transform, With<LocalPlayerVisual>>,
 ) {
     let Some(local_state) = &snapshot.local_player else {
         return;
@@ -37,5 +59,50 @@ fn sync_local_player_transform(
     for mut transform in &mut query {
         transform.translation.x = local_state.position.x;
         transform.translation.y = local_state.position.y;
+    }
+}
+
+fn sync_remote_player_squares(
+    mut commands: Commands,
+    snapshot: Res<NetworkSnapshot>,
+    mut query: Query<(Entity, &RemotePlayerVisual, &mut Transform)>,
+) {
+    let remote_by_id: HashMap<PlayerId, _> = snapshot
+        .remote_players
+        .iter()
+        .map(|player| (player.id, player))
+        .collect();
+    let wanted_ids: HashSet<PlayerId> = remote_by_id.keys().copied().collect();
+
+    let mut existing_entities: HashMap<PlayerId, Entity> = HashMap::new();
+
+    for (entity, visual, mut transform) in &mut query {
+        existing_entities.insert(visual.id, entity);
+
+        if let Some(remote_state) = remote_by_id.get(&visual.id) {
+            transform.translation.x = remote_state.position.x;
+            transform.translation.y = remote_state.position.y;
+        }
+    }
+
+    for remote_state in &snapshot.remote_players {
+        if existing_entities.contains_key(&remote_state.id) {
+            continue;
+        }
+
+        commands.spawn((
+            Name::new(format!("RemotePlayer_{}", remote_state.id.0)),
+            RemotePlayerVisual {
+                id: remote_state.id,
+            },
+            Sprite::from_color(Color::srgb(0.2, 0.5, 0.95), Vec2::splat(24.0)),
+            Transform::from_xyz(remote_state.position.x, remote_state.position.y, 10.0),
+        ));
+    }
+
+    for (player_id, entity) in existing_entities {
+        if !wanted_ids.contains(&player_id) {
+            commands.entity(entity).despawn();
+        }
     }
 }
