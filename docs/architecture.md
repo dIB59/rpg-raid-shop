@@ -8,14 +8,14 @@
 
 ## Crate boundaries
 
-- `shared`: IDs, vectors, movement intents, and player state DTOs.
-- `spacetimedb_module`: reducer-side simulation and persistence model.
-- `client_bevy`: rendering, input capture, prediction/interpolation, network bridge.
+- `shared`: IDs, vectors, movement intents, and player state DTOs for client systems.
+- `spacetimedb_module`: authoritative `player` table, reducers, and public read views.
+- `client_bevy`: rendering, input capture, prediction/interpolation, and module API adapter.
 
 ## Data flow (MVP)
 
 1. Client starts with guest identity.
 2. Client sends movement intent each frame/tick.
-3. Server applies speed/step limits and writes authoritative position.
-4. Server broadcasts updates.
+3. `move_self` applies speed/step limits and writes authoritative position.
+4. Clients query/subscribe to `players_snapshot`.
 5. Client reconciles local entity and interpolates remote entities.
