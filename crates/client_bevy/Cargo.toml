@@ -1,0 +1,10 @@
+[package]
+name = "client_bevy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bevy.workspace = true
+bevy_ecs_ldtk.workspace = true
+shared = { path = "../shared" }
