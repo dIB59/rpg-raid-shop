@@ -1,3 +1,4 @@
+mod module_bindings;
 mod network;
 mod player;
 

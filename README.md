@@ -10,13 +10,13 @@ Multiplayer 2D top-down RPG foundation using Rust, Bevy, LDTK, and SpacetimeDB.
 
 ## Current milestone
 
-- SpacetimeDB `player` table with lifecycle reducers (`client_connected`, `client_disconnected`)
-- Guest registration reducer (`connect_guest`) and authoritative movement reducer (`move_self`)
-- Public snapshot view (`players_snapshot`) for multiplayer sync
-- Bevy client network layer aligned to module API contract (`connect_guest`, `move_self`, snapshot pull)
+- SpacetimeDB authoritative `player` table + reducers (`connect_guest`, `move_self`)
+- Generated Rust client bindings in `crates/client_bevy/src/module_bindings`
+- Bevy client connected to live SpacetimeDB (table subscription + reducer calls)
+- Local and remote player squares synced from authoritative table state
 
 ## Next implementation targets
 
-1. Generate Rust client bindings from the module and replace the temporary in-process authoritative adapter.
-2. Add LDTK world loading and collision extraction.
-3. Add remote-player interpolation + reconciliation against subscribed snapshots.
+1. Add LDTK world loading and collision extraction.
+2. Add client-side interpolation/smoothing for remote players.
+3. Add combat reducers and hit resolution.
