@@ -1,3 +1,5 @@
+//! Visual systems for local and remote player entities.
+
 use bevy::prelude::*;
 use shared::PlayerId;
 use std::collections::{HashMap, HashSet};

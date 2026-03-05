@@ -1,3 +1,5 @@
+//! Development task runner for local SpacetimeDB and client workflows.
+
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::net::{TcpStream, ToSocketAddrs};

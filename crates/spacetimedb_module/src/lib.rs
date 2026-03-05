@@ -1,8 +1,11 @@
+//! SpacetimeDB module that owns authoritative player state and movement reducers.
+
 use spacetimedb::{ConnectionId, Identity, Query, ReducerContext, Table, ViewContext};
 
 const PLAYER_SPEED_UNITS_PER_SEC: f32 = 180.0;
 const MAX_SIMULATION_STEP_SECONDS: f32 = 0.1;
 
+/// Persistent player record stored in SpacetimeDB.
 #[spacetimedb::table(accessor = player, public)]
 pub struct Player {
     #[auto_inc]
@@ -16,11 +19,13 @@ pub struct Player {
     pub y: f32,
 }
 
+/// Ensures a player row exists when a client connects.
 #[spacetimedb::reducer(client_connected)]
 pub fn client_connected(ctx: &ReducerContext) {
     ensure_player_exists(ctx, default_guest_name(ctx.sender()));
 }
 
+/// Removes the player row for the disconnecting connection.
 #[spacetimedb::reducer(client_disconnected)]
 pub fn client_disconnected(ctx: &ReducerContext) {
     if let Some(connection_id) = ctx.connection_id() {
@@ -28,6 +33,7 @@ pub fn client_disconnected(ctx: &ReducerContext) {
     }
 }
 
+/// Registers or updates the caller as a guest with a sanitized display name.
 #[spacetimedb::reducer]
 pub fn connect_guest(ctx: &ReducerContext, guest_name: String) -> Result<(), String> {
     let sanitized_name = sanitize_guest_name(guest_name)?;
@@ -35,6 +41,7 @@ pub fn connect_guest(ctx: &ReducerContext, guest_name: String) -> Result<(), Str
     Ok(())
 }
 
+/// Applies normalized movement input for the caller over a clamped delta time.
 #[spacetimedb::reducer]
 pub fn move_self(
     ctx: &ReducerContext,
@@ -65,11 +72,15 @@ pub fn move_self(
     Ok(())
 }
 
+/// Returns the complete set of players for client-side snapshot rendering.
 #[spacetimedb::view(accessor = players_snapshot, public)]
 pub fn players_snapshot(ctx: &ViewContext) -> impl Query<Player> {
     ctx.from.player().build()
 }
 
+/// Ensures there is exactly one player row for the current connection.
+///
+/// If a row already exists, only mutable fields are refreshed.
 fn ensure_player_exists(ctx: &ReducerContext, name: String) {
     let Some(connection_id) = ctx.connection_id() else {
         return;
@@ -97,6 +108,7 @@ fn ensure_player_exists(ctx: &ReducerContext, name: String) {
     });
 }
 
+/// Validates and normalizes a guest name to alphanumeric, `_`, and `-` (max 24 chars).
 fn sanitize_guest_name(candidate: String) -> Result<String, String> {
     let trimmed = candidate.trim();
     if trimmed.is_empty() {
@@ -127,6 +139,7 @@ fn default_guest_name(identity: Identity) -> String {
     format!("Guest_{suffix}")
 }
 
+/// Normalizes `(x, y)` or returns `(0, 0)` when magnitude is near zero.
 fn normalize_or_zero(x: f32, y: f32) -> (f32, f32) {
     let len_sq = (x * x) + (y * y);
     if len_sq <= f32::EPSILON {

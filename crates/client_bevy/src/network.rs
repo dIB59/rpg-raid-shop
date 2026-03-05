@@ -1,3 +1,5 @@
+//! Networking systems that connect the Bevy client to SpacetimeDB.
+
 use bevy::prelude::*;
 use spacetimedb_sdk::{DbContext, Table};
 use std::env;
@@ -10,12 +12,14 @@ use shared::{MovementIntent, PlayerId, PlayerState, Vec2f};
 const DEFAULT_SPACETIME_URI: &str = "http://127.0.0.1:3000";
 const DEFAULT_SPACETIME_DB: &str = "rpg-raid-shop-dev";
 
+/// Frame-local snapshot consumed by render/gameplay systems.
 #[derive(Resource, Default)]
 pub struct NetworkSnapshot {
     pub local_player: Option<PlayerState>,
     pub remote_players: Vec<PlayerState>,
 }
 
+/// Live SpacetimeDB connection and active subscription lifecycle handle.
 #[derive(Resource)]
 struct LiveConnection {
     connection: module_bindings::DbConnection,
@@ -27,6 +31,7 @@ struct LocalConnectionId {
     connection_id: spacetimedb_sdk::ConnectionId,
 }
 
+/// Bevy plugin that initializes networking and updates snapshots every frame.
 pub struct NetworkPlugin;
 
 impl Plugin for NetworkPlugin {
@@ -44,6 +49,7 @@ impl Plugin for NetworkPlugin {
     }
 }
 
+/// Establishes a DB connection, subscribes to players, and issues `connect_guest`.
 fn bootstrap_live_connection(mut commands: Commands, mut snapshot: ResMut<NetworkSnapshot>) {
     let uri = env::var("SPACETIME_URI").unwrap_or_else(|_| DEFAULT_SPACETIME_URI.to_string());
     let database_name =
@@ -87,6 +93,7 @@ Hint: run `cargo db-start` and `cargo db-sync`, then relaunch the client."
     snapshot.remote_players.clear();
 }
 
+/// Sends local keyboard movement intent to the `move_self` reducer.
 fn send_local_intent_to_server(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -135,6 +142,7 @@ fn poll_local_connection_id(
     }
 }
 
+/// Rebuilds local and remote player snapshots from subscribed player table rows.
 fn pull_snapshot_from_server(
     live: Option<Res<LiveConnection>>,
     local_connection_id: Option<Res<LocalConnectionId>>,

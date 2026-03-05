@@ -1,3 +1,5 @@
+//! Bevy game client executable.
+
 mod module_bindings;
 mod network;
 mod player;

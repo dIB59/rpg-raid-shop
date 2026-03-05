@@ -8,6 +8,39 @@ Multiplayer 2D top-down RPG foundation using Rust, Bevy, LDTK, and SpacetimeDB.
 - `crates/shared`: protocol + domain types shared by client systems
 - `crates/spacetimedb_module`: SpacetimeDB tables, reducers, and public views
 
+## Module tour
+
+### `crates/shared`
+
+- Defines shared DTOs and primitives (`PlayerId`, `Vec2f`, `PlayerState`, `MovementIntent`).
+- Acts as the wire/data contract between client runtime and authoritative backend reducers.
+
+### `crates/spacetimedb_module`
+
+- Owns authoritative mutable multiplayer state in the `Player` table.
+- Handles lifecycle reducers: client connect/disconnect and explicit guest registration.
+- Applies movement server-side via `move_self` with normalization and step clamping.
+- Exposes a public view (`players_snapshot`) consumed by subscribed clients.
+
+### `crates/client_bevy`
+
+- `network.rs` opens DB connection, subscribes to table updates, and sends movement reducers.
+- `player.rs` mirrors `NetworkSnapshot` into Bevy entities for local and remote player visuals.
+- `main.rs` wires Bevy plugins (rendering, LDtk, network, and player systems).
+
+### `crates/xtask`
+
+- Provides local development orchestration (`dev-up`, `dev-client`, `dev-down`).
+- Wraps publish/generate/config workflows for SpacetimeDB and generated bindings.
+
+### End-to-end runtime flow
+
+1. Client starts and calls `connect_guest`.
+2. Client sends input-derived movement intent each frame to `move_self`.
+3. SpacetimeDB applies authoritative movement and updates `Player` rows.
+4. Client subscription pulls latest rows and rebuilds `NetworkSnapshot`.
+5. Bevy visual systems update local/remote sprites from snapshot state.
+
 ## Current milestone
 
 - SpacetimeDB authoritative `player` table + reducers (`connect_guest`, `move_self`)
