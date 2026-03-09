@@ -7,16 +7,72 @@ use std::env;
 use crate::module_bindings::{
     self, PlayerTableAccess, connect_guest_reducer::connect_guest, move_self_reducer::move_self,
 };
-use shared::{MovementIntent, PlayerId, PlayerState, Vec2f};
+use shared::{MovementIntent, PlayerId, PlayerState, Vec2f, simulate_movement};
 
 const DEFAULT_SPACETIME_URI: &str = "http://127.0.0.1:3000";
 const DEFAULT_SPACETIME_DB: &str = "rpg-raid-shop-dev";
+const LOCAL_PREDICTION_CORRECTION_FACTOR: f32 = 0.35;
+const LOCAL_PREDICTION_HARD_SNAP_DISTANCE: f32 = 48.0;
 
 /// Frame-local snapshot consumed by render/gameplay systems.
 #[derive(Resource, Default)]
 pub struct NetworkSnapshot {
     pub local_player: Option<PlayerState>,
     pub remote_players: Vec<PlayerState>,
+}
+
+#[derive(Resource, Default)]
+pub struct LocalPlayerPrediction {
+    authoritative_position: Option<Vec2f>,
+    predicted_position: Option<Vec2f>,
+}
+
+impl LocalPlayerPrediction {
+    pub fn predicted_position(&self) -> Option<Vec2f> {
+        self.predicted_position
+    }
+
+    fn clear(&mut self) {
+        self.authoritative_position = None;
+        self.predicted_position = None;
+    }
+
+    fn apply_local_intent(&mut self, intent: MovementIntent) {
+        let Some(predicted_position) = self.predicted_position else {
+            return;
+        };
+
+        self.predicted_position = Some(simulate_movement(
+            predicted_position,
+            intent.direction,
+            intent.delta_seconds,
+        ));
+    }
+
+    fn reconcile_authoritative_position(&mut self, authoritative_position: Vec2f) {
+        self.authoritative_position = Some(authoritative_position);
+
+        let Some(predicted_position) = self.predicted_position else {
+            self.predicted_position = Some(authoritative_position);
+            return;
+        };
+
+        let error = authoritative_position.sub(predicted_position);
+        if error.length_squared()
+            >= LOCAL_PREDICTION_HARD_SNAP_DISTANCE * LOCAL_PREDICTION_HARD_SNAP_DISTANCE
+        {
+            self.predicted_position = Some(authoritative_position);
+            return;
+        }
+
+        self.predicted_position =
+            Some(predicted_position.add(error.scaled(LOCAL_PREDICTION_CORRECTION_FACTOR)));
+    }
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NetworkSet {
+    Sync,
 }
 
 /// Live SpacetimeDB connection and active subscription lifecycle handle.
@@ -37,6 +93,8 @@ pub struct NetworkPlugin;
 impl Plugin for NetworkPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<NetworkSnapshot>()
+            .init_resource::<LocalPlayerPrediction>()
+            .configure_sets(Update, NetworkSet::Sync)
             .add_systems(Startup, bootstrap_live_connection)
             .add_systems(
                 Update,
@@ -44,13 +102,19 @@ impl Plugin for NetworkPlugin {
                     send_local_intent_to_server,
                     poll_local_connection_id,
                     pull_snapshot_from_server,
-                ),
+                )
+                    .chain()
+                    .in_set(NetworkSet::Sync),
             );
     }
 }
 
 /// Establishes a DB connection, subscribes to players, and issues `connect_guest`.
-fn bootstrap_live_connection(mut commands: Commands, mut snapshot: ResMut<NetworkSnapshot>) {
+fn bootstrap_live_connection(
+    mut commands: Commands,
+    mut snapshot: ResMut<NetworkSnapshot>,
+    mut prediction: ResMut<LocalPlayerPrediction>,
+) {
     let uri = env::var("SPACETIME_URI").unwrap_or_else(|_| DEFAULT_SPACETIME_URI.to_string());
     let database_name =
         env::var("SPACETIME_DB").unwrap_or_else(|_| DEFAULT_SPACETIME_DB.to_string());
@@ -91,6 +155,7 @@ Hint: run `cargo db-start` and `cargo db-sync`, then relaunch the client."
 
     snapshot.local_player = None;
     snapshot.remote_players.clear();
+    prediction.clear();
 }
 
 /// Sends local keyboard movement intent to the `move_self` reducer.
@@ -98,6 +163,7 @@ fn send_local_intent_to_server(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     live: Option<Res<LiveConnection>>,
+    mut prediction: ResMut<LocalPlayerPrediction>,
 ) {
     let Some(live) = live else {
         return;
@@ -117,11 +183,18 @@ fn send_local_intent_to_server(
         return;
     }
 
-    let _ = live.connection.reducers.move_self(
-        local_intent.direction.x,
-        local_intent.direction.y,
-        local_intent.delta_seconds,
-    );
+    if live
+        .connection
+        .reducers
+        .move_self(
+            local_intent.direction.x,
+            local_intent.direction.y,
+            local_intent.delta_seconds,
+        )
+        .is_ok()
+    {
+        prediction.apply_local_intent(local_intent);
+    }
 }
 
 fn poll_local_connection_id(
@@ -147,6 +220,7 @@ fn pull_snapshot_from_server(
     live: Option<Res<LiveConnection>>,
     local_connection_id: Option<Res<LocalConnectionId>>,
     mut snapshot: ResMut<NetworkSnapshot>,
+    mut prediction: ResMut<LocalPlayerPrediction>,
 ) {
     let Some(live) = live else {
         return;
@@ -180,6 +254,12 @@ fn pull_snapshot_from_server(
         .iter()
         .find(|player| Some(player.id) == local_player_id)
         .cloned();
+
+    if let Some(local_player) = &snapshot.local_player {
+        prediction.reconcile_authoritative_position(local_player.position);
+    } else {
+        prediction.clear();
+    }
 
     snapshot.remote_players = all_players
         .into_iter()

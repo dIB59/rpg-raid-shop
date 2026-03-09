@@ -4,13 +4,21 @@ use bevy::prelude::*;
 use shared::PlayerId;
 use std::collections::{HashMap, HashSet};
 
-use crate::{camera::FollowTarget, network::NetworkSnapshot};
+use crate::network::{LocalPlayerPrediction, NetworkSet, NetworkSnapshot};
+
+const LOCAL_PLAYER_VISUAL_SMOOTHNESS: f32 = 18.0;
 
 #[derive(Component)]
-struct LocalPlayerVisual;
+pub(crate) struct LocalPlayerVisual;
 
 #[derive(Component)]
 struct LocalPlayerOutline;
+
+#[derive(Component)]
+struct LocalPlayerRenderState {
+    target_position: Vec2,
+    visual_position: Vec2,
+}
 
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct RemotePlayerVisual {
@@ -19,31 +27,59 @@ struct RemotePlayerVisual {
 
 pub struct PlayerPlugin;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PlayerSet {
+    Lifecycle,
+    Presentation,
+}
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_camera).add_systems(
+        app.configure_sets(
             Update,
             (
-                ensure_local_player_square,
-                sync_local_player_transform,
-                sync_remote_player_squares,
+                PlayerSet::Lifecycle.after(NetworkSet::Sync),
+                PlayerSet::Presentation.after(PlayerSet::Lifecycle),
             ),
+        )
+        .add_systems(
+            Update,
+            (
+                despawn_local_player_visual_when_missing,
+                ensure_local_player_visual,
+                sync_remote_player_squares,
+            )
+                .chain()
+                .in_set(PlayerSet::Lifecycle),
+        )
+        .add_systems(
+            Update,
+            (sync_local_player_render_state, smooth_local_player_visual)
+                .chain()
+                .in_set(PlayerSet::Presentation),
         );
     }
 }
 
-#[derive(Component)]
-struct PlayerCamera;
+fn despawn_local_player_visual_when_missing(
+    mut commands: Commands,
+    snapshot: Res<NetworkSnapshot>,
+    existing: Query<Entity, With<LocalPlayerVisual>>,
+) {
+    if snapshot.local_player.is_some() {
+        return;
+    }
 
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Camera2d, PlayerCamera));
+    for entity in &existing {
+        commands.entity(entity).despawn();
+    }
 }
 
-fn ensure_local_player_square(
+fn ensure_local_player_visual(
     mut commands: Commands,
-    snapshot: Res<NetworkSnapshot>, // Multiplayer snapshot with local and remote player states
-    existing: Query<Entity, With<LocalPlayerVisual>>, // Check if the local player square already exists
-    camera_query: Query<Entity, With<PlayerCamera>>,
+    snapshot: Res<NetworkSnapshot>,
+    prediction: Res<LocalPlayerPrediction>,
+    existing: Query<Entity, With<LocalPlayerVisual>>,
 ) {
     let Some(local_player) = &snapshot.local_player else {
         return;
@@ -53,12 +89,21 @@ fn ensure_local_player_square(
         return;
     }
 
-    let player_entity = commands
+    let initial_position = prediction
+        .predicted_position()
+        .unwrap_or(local_player.position);
+    let initial_position = vec2(initial_position.x, initial_position.y);
+
+    commands
         .spawn((
             Name::new("LocalPlayer"),
             LocalPlayerVisual,
+            LocalPlayerRenderState {
+                target_position: initial_position,
+                visual_position: initial_position,
+            },
             Sprite::from_color(player_color(local_player.id), Vec2::splat(24.0)),
-            Transform::from_xyz(0.0, 0.0, 10.0),
+            Transform::from_xyz(initial_position.x, initial_position.y, 10.0),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -67,29 +112,41 @@ fn ensure_local_player_square(
                 Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
                 Transform::from_xyz(0.0, 0.0, -0.1),
             ));
-        })
-        .id();
-
-    if let Ok(camera_entity) = camera_query.single() {
-        commands.entity(camera_entity).insert(FollowTarget {
-            entity: player_entity,
-            smoothness: 5.0,
         });
-    }
 }
 
-fn sync_local_player_transform(
+fn sync_local_player_render_state(
     snapshot: Res<NetworkSnapshot>,
-    mut query: Query<(&mut Transform, &mut Sprite), With<LocalPlayerVisual>>,
+    prediction: Res<LocalPlayerPrediction>,
+    mut query: Query<(&mut LocalPlayerRenderState, &mut Sprite), With<LocalPlayerVisual>>,
 ) {
     let Some(local_state) = &snapshot.local_player else {
         return;
     };
 
-    for (mut transform, mut sprite) in &mut query {
-        transform.translation.x = local_state.position.x;
-        transform.translation.y = local_state.position.y;
+    let target_position = prediction
+        .predicted_position()
+        .unwrap_or(local_state.position);
+    let target_position = vec2(target_position.x, target_position.y);
+
+    for (mut render_state, mut sprite) in &mut query {
+        render_state.target_position = target_position;
         sprite.color = player_color(local_state.id);
+    }
+}
+
+fn smooth_local_player_visual(
+    time: Res<Time>,
+    mut query: Query<(&mut LocalPlayerRenderState, &mut Transform), With<LocalPlayerVisual>>,
+) {
+    let blend = smoothing_blend(LOCAL_PLAYER_VISUAL_SMOOTHNESS, time.delta_secs());
+
+    for (mut render_state, mut transform) in &mut query {
+        render_state.visual_position = render_state
+            .visual_position
+            .lerp(render_state.target_position, blend);
+        transform.translation.x = render_state.visual_position.x;
+        transform.translation.y = render_state.visual_position.y;
     }
 }
 
@@ -152,4 +209,8 @@ fn player_color(player_id: PlayerId) -> Color {
 
     let index = (player_id.0 as usize) % PALETTE.len();
     PALETTE[index]
+}
+
+fn smoothing_blend(smoothness: f32, delta_seconds: f32) -> f32 {
+    1.0 - (-smoothness * delta_seconds).exp()
 }

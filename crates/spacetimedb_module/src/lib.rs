@@ -1,9 +1,7 @@
 //! SpacetimeDB module that owns authoritative player state and movement reducers.
 
+use shared::{Vec2f, simulate_movement};
 use spacetimedb::{ConnectionId, Identity, Query, ReducerContext, Table, ViewContext};
-
-const PLAYER_SPEED_UNITS_PER_SEC: f32 = 180.0;
-const MAX_SIMULATION_STEP_SECONDS: f32 = 0.1;
 
 /// Persistent player record stored in SpacetimeDB.
 #[spacetimedb::table(accessor = player, public)]
@@ -60,14 +58,16 @@ pub fn move_self(
         .find(connection_id)
         .ok_or_else(|| "player not registered, call connect_guest first".to_string())?;
 
-    let clamped_dt = delta_seconds.clamp(0.0, MAX_SIMULATION_STEP_SECONDS);
-    if clamped_dt <= f32::EPSILON {
-        return Ok(());
-    }
-
-    let (dir_x, dir_y) = normalize_or_zero(direction_x, direction_y);
-    row.x += dir_x * PLAYER_SPEED_UNITS_PER_SEC * clamped_dt;
-    row.y += dir_y * PLAYER_SPEED_UNITS_PER_SEC * clamped_dt;
+    let next_position = simulate_movement(
+        Vec2f { x: row.x, y: row.y },
+        Vec2f {
+            x: direction_x,
+            y: direction_y,
+        },
+        delta_seconds,
+    );
+    row.x = next_position.x;
+    row.y = next_position.y;
     ctx.db.player().id().update(row);
     Ok(())
 }
@@ -137,15 +137,4 @@ fn default_guest_name(identity: Identity) -> String {
     let identity_text = identity.to_string();
     let suffix: String = identity_text.chars().take(8).collect();
     format!("Guest_{suffix}")
-}
-
-/// Normalizes `(x, y)` or returns `(0, 0)` when magnitude is near zero.
-fn normalize_or_zero(x: f32, y: f32) -> (f32, f32) {
-    let len_sq = (x * x) + (y * y);
-    if len_sq <= f32::EPSILON {
-        return (0.0, 0.0);
-    }
-
-    let inv_len = len_sq.sqrt().recip();
-    (x * inv_len, y * inv_len)
 }
