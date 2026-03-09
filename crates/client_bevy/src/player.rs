@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use shared::PlayerId;
 use std::collections::{HashMap, HashSet};
 
-use crate::network::NetworkSnapshot;
+use crate::{camera::FollowTarget, network::NetworkSnapshot};
 
 #[derive(Component)]
 struct LocalPlayerVisual;
@@ -32,14 +32,18 @@ impl Plugin for PlayerPlugin {
     }
 }
 
+#[derive(Component)]
+struct PlayerCamera;
+
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
+    commands.spawn((Camera2d, PlayerCamera));
 }
 
 fn ensure_local_player_square(
     mut commands: Commands,
-    snapshot: Res<NetworkSnapshot>,
-    existing: Query<Entity, With<LocalPlayerVisual>>,
+    snapshot: Res<NetworkSnapshot>, // Multiplayer snapshot with local and remote player states
+    existing: Query<Entity, With<LocalPlayerVisual>>, // Check if the local player square already exists
+    camera_query: Query<Entity, With<PlayerCamera>>,
 ) {
     let Some(local_player) = &snapshot.local_player else {
         return;
@@ -49,7 +53,7 @@ fn ensure_local_player_square(
         return;
     }
 
-    commands
+    let player_entity = commands
         .spawn((
             Name::new("LocalPlayer"),
             LocalPlayerVisual,
@@ -63,7 +67,15 @@ fn ensure_local_player_square(
                 Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
                 Transform::from_xyz(0.0, 0.0, -0.1),
             ));
+        })
+        .id();
+
+    if let Ok(camera_entity) = camera_query.single() {
+        commands.entity(camera_entity).insert(FollowTarget {
+            entity: player_entity,
+            smoothness: 5.0,
         });
+    }
 }
 
 fn sync_local_player_transform(
