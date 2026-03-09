@@ -1,11 +1,13 @@
 //! Bevy game client executable.
 
+mod camera;
 mod module_bindings;
 mod network;
 mod player;
+mod world;
 
 use bevy::prelude::*;
-use bevy_ecs_ldtk::LdtkPlugin;
+use bevy_ecs_ldtk::{LdtkPlugin, LevelSelection};
 
 fn main() {
     App::new()
@@ -18,6 +20,12 @@ fn main() {
             ..default()
         }))
         .add_plugins(LdtkPlugin)
-        .add_plugins((network::NetworkPlugin, player::PlayerPlugin))
+        .add_plugins((
+            network::NetworkPlugin,
+            player::PlayerPlugin,
+            camera::CameraFollowPlugin,
+        ))
+        .add_systems(Startup, world::setup)
+        .insert_resource(LevelSelection::index(0))
         .run();
 }
