@@ -11,6 +11,7 @@ const DEFAULT_SPACETIME_URI: &str = "http://127.0.0.1:3000";
 const DEFAULT_SPACETIME_DB: &str = "rpg-raid-shop-dev";
 const DEFAULT_WASM_PATH: &str = "target/wasm32-unknown-unknown/release/spacetimedb_module.wasm";
 const DEFAULT_SPACETIME_DATA_DIR: &str = "target/dev/spacetime-data";
+const WATCH_PID_NAME: &str = "cargo-watch.pid";
 
 fn main() -> ExitCode {
     if let Err(error) = run() {
@@ -104,33 +105,121 @@ fn db_start(repo_root: &Path) -> Result<(), String> {
 fn dev_up(repo_root: &Path) -> Result<(), String> {
     ensure_db_running_background(repo_root)?;
     db_publish(repo_root)?;
-    db_generate(repo_root)
+    db_generate(repo_root)?;
+    run_watch_foreground(repo_root)
 }
 
 fn dev_down(repo_root: &Path) -> Result<(), String> {
-    let pid_file = pid_file(repo_root);
+    stop_managed_process(&watch_pid_file(repo_root), "cargo-watch")?;
+    stop_managed_process(&pid_file(repo_root), "SpacetimeDB")
+}
+
+fn stop_managed_process(pid_file: &Path, label: &str) -> Result<(), String> {
     if !pid_file.exists() {
-        println!("No managed DB pid file found at {}", pid_file.display());
+        println!(
+            "No managed {label} pid file found at {}",
+            pid_file.display()
+        );
         return Ok(());
     }
 
-    let pid_text = fs::read_to_string(&pid_file).map_err(|error| error.to_string())?;
+    let pid_text = fs::read_to_string(pid_file).map_err(|error| error.to_string())?;
     let pid = pid_text
         .trim()
         .parse::<u32>()
         .map_err(|error| format!("invalid pid file contents: {error}"))?;
 
-    let status = Command::new("kill")
-        .arg(pid.to_string())
-        .status()
-        .map_err(|error| error.to_string())?;
-    if !status.success() {
-        return Err(format!("failed to stop DB process pid={pid} (status {status})"));
+    if !process_is_running(pid) {
+        fs::remove_file(pid_file).map_err(|error| error.to_string())?;
+        println!("Removed stale {label} pid file for pid={pid}");
+        return Ok(());
     }
 
-    fs::remove_file(&pid_file).map_err(|error| error.to_string())?;
-    println!("Stopped DB process pid={pid}");
-    Ok(())
+    let output = Command::new("kill")
+        .arg(pid.to_string())
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() && process_is_running(pid) {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            return Err(format!(
+                "failed to stop {label} pid={pid} (status {})",
+                output.status
+            ));
+        }
+
+        return Err(format!(
+            "failed to stop {label} pid={pid} (status {}): {stderr}",
+            output.status
+        ));
+    }
+
+    for _ in 0..20 {
+        if !process_is_running(pid) {
+            fs::remove_file(pid_file).map_err(|error| error.to_string())?;
+            println!("Stopped {label} pid={pid}");
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    Err(format!("timed out waiting for {label} pid={pid} to exit"))
+}
+
+fn run_watch_foreground(repo_root: &Path) -> Result<(), String> {
+    let pid_file = watch_pid_file(repo_root);
+    if let Some(pid) = read_running_pid(&pid_file)? {
+        return Err(format!(
+            "cargo-watch is already running (pid={pid}); stop it with `cargo dev-down` before starting another watcher"
+        ));
+    }
+
+    let cargo_watch = cargo_watch_bin()?;
+    println!(
+        "Starting cargo-watch in this terminal. Press Ctrl-C to stop watching; use `cargo dev-down` from another terminal to stop both the watcher and the DB."
+    );
+
+    let mut child = Command::new(cargo_watch)
+        .current_dir(repo_root)
+        .arg("--watch")
+        .arg("Cargo.toml")
+        .arg("--watch")
+        .arg("crates/shared/src")
+        .arg("--watch")
+        .arg("crates/shared/Cargo.toml")
+        .arg("--watch")
+        .arg("crates/spacetimedb_module/src")
+        .arg("--watch")
+        .arg("crates/spacetimedb_module/Cargo.toml")
+        .arg("--watch")
+        .arg("crates/xtask/src")
+        .arg("--watch")
+        .arg("crates/xtask/Cargo.toml")
+        .arg("--ignore")
+        .arg("crates/client_bevy/src/module_bindings/**")
+        .arg("--ignore")
+        .arg("target/**")
+        .arg("--delay")
+        .arg("0.5")
+        .arg("--postpone")
+        .arg("-x")
+        .arg("run -p xtask -- db sync")
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| error.to_string())?;
+
+    let pid = child.id();
+    fs::write(&pid_file, pid.to_string()).map_err(|error| error.to_string())?;
+
+    let status = child.wait().map_err(|error| error.to_string())?;
+    remove_pid_file_if_matches(&pid_file, pid)?;
+
+    if status.success() || status.code().is_none() || status.code() == Some(130) {
+        return Ok(());
+    }
+
+    Err(format!("cargo-watch exited with status {status}"))
 }
 
 fn db_publish(repo_root: &Path) -> Result<(), String> {
@@ -276,11 +365,57 @@ fn spacetime_data_dir(repo_root: &Path) -> String {
     env::var("SPACETIME_DATA_DIR")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| repo_root.join(DEFAULT_SPACETIME_DATA_DIR).display().to_string())
+        .unwrap_or_else(|| {
+            repo_root
+                .join(DEFAULT_SPACETIME_DATA_DIR)
+                .display()
+                .to_string()
+        })
 }
 
 fn pid_file(repo_root: &Path) -> PathBuf {
     repo_root.join("target/dev/spacetime.pid")
+}
+
+fn watch_pid_file(repo_root: &Path) -> PathBuf {
+    repo_root.join(format!("target/dev/{WATCH_PID_NAME}"))
+}
+
+fn remove_pid_file_if_matches(pid_file: &Path, pid: u32) -> Result<(), String> {
+    if !pid_file.exists() {
+        return Ok(());
+    }
+
+    let pid_text = fs::read_to_string(pid_file).map_err(|error| error.to_string())?;
+    let recorded_pid = pid_text
+        .trim()
+        .parse::<u32>()
+        .map_err(|error| format!("invalid pid file contents: {error}"))?;
+
+    if recorded_pid == pid {
+        fs::remove_file(pid_file).map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
+fn read_running_pid(pid_file: &Path) -> Result<Option<u32>, String> {
+    if !pid_file.exists() {
+        return Ok(None);
+    }
+
+    let pid_text = fs::read_to_string(pid_file).map_err(|error| error.to_string())?;
+    let pid = pid_text
+        .trim()
+        .parse::<u32>()
+        .map_err(|error| format!("invalid pid file contents: {error}"))?;
+
+    if process_is_running(pid) {
+        return Ok(Some(pid));
+    }
+
+    fs::remove_file(pid_file).map_err(|error| error.to_string())?;
+    Ok(None)
 }
 
 fn host_port_from_uri(uri: &str) -> Result<(String, u16), String> {
@@ -316,6 +451,15 @@ fn is_port_open(host: &str, port: u16) -> bool {
     TcpStream::connect_timeout(&socket, std::time::Duration::from_millis(300)).is_ok()
 }
 
+fn process_is_running(pid: u32) -> bool {
+    Command::new("kill")
+        .arg("-0")
+        .arg(pid.to_string())
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
 fn run_command(command: &mut Command) -> Result<(), String> {
     let status = command.status().map_err(|error| error.to_string())?;
     if status.success() {
@@ -334,12 +478,31 @@ fn spacetime_bin() -> Result<String, String> {
         return Ok("spacetime".to_string());
     }
 
-    let local = format!("{}/.local/bin/spacetime", env::var("HOME").unwrap_or_default());
+    let local = format!(
+        "{}/.local/bin/spacetime",
+        env::var("HOME").unwrap_or_default()
+    );
     if Path::new(&local).exists() {
         return Ok(local);
     }
 
     Err("SpacetimeDB CLI not found. Set SPACETIME_BIN or add 'spacetime' to PATH.".to_string())
+}
+
+fn cargo_watch_bin() -> Result<String, String> {
+    if command_exists("cargo-watch") {
+        return Ok("cargo-watch".to_string());
+    }
+
+    let local = format!(
+        "{}/.cargo/bin/cargo-watch",
+        env::var("HOME").unwrap_or_default()
+    );
+    if Path::new(&local).exists() {
+        return Ok(local);
+    }
+
+    Err("cargo-watch not found. Install it with `cargo install cargo-watch`.".to_string())
 }
 
 fn command_exists(name: &str) -> bool {

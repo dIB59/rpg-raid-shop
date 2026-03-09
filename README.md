@@ -56,6 +56,10 @@ Multiplayer 2D top-down RPG foundation using Rust, Bevy, LDTK, and SpacetimeDB.
 
 ## Fast local dev
 
+Prerequisite: install `cargo-watch` so lifecycle commands can keep the DB module published and bindings regenerated while you edit, with rebuild output visible in the `cargo dev-up` terminal.
+
+`cargo install cargo-watch`
+
 Use lifecycle cargo commands:
 
 1. Terminal 1: `cargo dev-up`
@@ -67,10 +71,11 @@ Both clients should connect to the same authoritative DB (`rpg-raid-shop-dev`) a
 
 ### Lifecycle commands
 
-- `cargo dev-up` starts/uses local DB, publishes module, and regenerates Rust bindings.
+- `cargo dev-up` starts/uses local DB, publishes the module, regenerates Rust bindings, then stays attached to `cargo-watch` so rebuilds and errors are visible in that terminal.
 - `cargo dev-up` uses a persistent local data directory by default: `target/dev/spacetime-data`.
 - `cargo dev-client [Guest]` runs the client with an optional guest name.
   - Examples: `cargo dev-client 1`, `cargo dev-client Guest_A`
-- `cargo dev-down` stops the managed DB process started by `cargo dev-up`.
+- `cargo dev-down` stops both the managed `cargo-watch` process and the managed DB process started by `cargo dev-up`.
+- If you stop `cargo dev-up` with Ctrl-C, the watcher exits but the DB remains managed until `cargo dev-down`.
 
 To override DB storage location, set `SPACETIME_DATA_DIR`.

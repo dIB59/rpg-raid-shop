@@ -4,6 +4,7 @@
 
 - Rust stable toolchain
 - SpacetimeDB CLI/runtime available on path (`spacetime`)
+- `cargo-watch` installed (`cargo install cargo-watch`)
 
 ## One-time shell setup
 
@@ -22,12 +23,18 @@ From the project root, use the lifecycle commands:
 1. Bring up local DB + publish module + generate bindings:
    - `cargo dev-up`
 
+`cargo dev-up` then stays attached to `cargo-watch`, so rerun output and failures are visible in that terminal when relevant server/shared sources change.
+
 By default, local DB data is persistent at `target/dev/spacetime-data`.
 Override with `SPACETIME_DATA_DIR` if needed.
 
 When finished, stop the managed local DB process:
 
 - `cargo dev-down`
+
+`cargo dev-down` also stops the managed `cargo-watch` process started by `cargo dev-up`.
+
+If you interrupt `cargo dev-up` with Ctrl-C, the watcher stops but the managed DB remains available until you run `cargo dev-down`.
 
 Run a client with an optional guest name:
 
