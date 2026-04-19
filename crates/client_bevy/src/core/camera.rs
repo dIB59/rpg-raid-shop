@@ -1,17 +1,15 @@
 use bevy::prelude::*;
 
-use crate::player::{LocalPlayerVisual, PlayerSet};
+use crate::features::player::{LocalPlayerVisual, PlayerSet};
 
 const CAMERA_FOLLOW_SMOOTHNESS: f32 = 8.0;
 
-/// Component to mark which entity a camera should follow
 #[derive(Component)]
 pub struct FollowTarget {
     pub entity: Entity,
     pub smoothness: f32,
 }
 
-/// Plugin to handle camera following logic
 pub struct CameraFollowPlugin;
 
 #[derive(Component)]
@@ -70,7 +68,6 @@ fn sync_camera_follow_target(
     }
 }
 
-/// System that moves cameras to follow their targets
 fn camera_follow_system(
     time: Res<Time>,
     targets: Query<&Transform, Without<FollowTarget>>,

@@ -1,73 +1,17 @@
-//! Visual systems for local and remote player entities.
-
 use bevy::prelude::*;
 use shared::PlayerId;
 use std::collections::{HashMap, HashSet};
 
-use crate::network::{LocalPlayerPrediction, NetworkSet, NetworkSnapshot};
+use crate::core::network::{LocalPlayerPrediction, NetworkSnapshot};
+use crate::features::player::components::{
+    LocalPlayerOutline, LocalPlayerRenderState, LocalPlayerVisual, RemotePlayerVisual,
+};
 
 const LOCAL_PLAYER_VISUAL_SMOOTHNESS: f32 = 18.0;
 const LOCAL_PLAYER_SPRITE_SIZE: f32 = 24.0;
 const AUTHORITATIVE_BORDER_COLOR: Color = Color::srgb(1.0, 0.85, 0.2);
 
-#[derive(Component)]
-pub(crate) struct LocalPlayerVisual;
-
-#[derive(Component)]
-struct LocalPlayerOutline;
-
-#[derive(Component)]
-struct LocalPlayerRenderState {
-    target_position: Vec2,
-    visual_position: Vec2,
-}
-
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct RemotePlayerVisual {
-    id: PlayerId,
-}
-
-pub struct PlayerPlugin;
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PlayerSet {
-    Lifecycle,
-    Presentation,
-}
-
-impl Plugin for PlayerPlugin {
-    fn build(&self, app: &mut App) {
-        app.configure_sets(
-            Update,
-            (
-                PlayerSet::Lifecycle.after(NetworkSet::Sync),
-                PlayerSet::Presentation.after(PlayerSet::Lifecycle),
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                despawn_local_player_visual_when_missing,
-                ensure_local_player_visual,
-                sync_remote_player_squares,
-            )
-                .chain()
-                .in_set(PlayerSet::Lifecycle),
-        )
-        .add_systems(
-            Update,
-            (
-                sync_local_player_render_state,
-                smooth_local_player_visual,
-                draw_local_player_authoritative_border,
-            )
-                .chain()
-                .in_set(PlayerSet::Presentation),
-        );
-    }
-}
-
-fn despawn_local_player_visual_when_missing(
+pub(super) fn despawn_local_player_visual_when_missing(
     mut commands: Commands,
     snapshot: Res<NetworkSnapshot>,
     existing: Query<Entity, With<LocalPlayerVisual>>,
@@ -81,7 +25,7 @@ fn despawn_local_player_visual_when_missing(
     }
 }
 
-fn ensure_local_player_visual(
+pub(super) fn ensure_local_player_visual(
     mut commands: Commands,
     snapshot: Res<NetworkSnapshot>,
     prediction: Res<LocalPlayerPrediction>,
@@ -124,7 +68,7 @@ fn ensure_local_player_visual(
         });
 }
 
-fn sync_local_player_render_state(
+pub(super) fn sync_local_player_render_state(
     snapshot: Res<NetworkSnapshot>,
     prediction: Res<LocalPlayerPrediction>,
     mut query: Query<(&mut LocalPlayerRenderState, &mut Sprite), With<LocalPlayerVisual>>,
@@ -144,7 +88,7 @@ fn sync_local_player_render_state(
     }
 }
 
-fn smooth_local_player_visual(
+pub(super) fn smooth_local_player_visual(
     time: Res<Time>,
     mut query: Query<(&mut LocalPlayerRenderState, &mut Transform), With<LocalPlayerVisual>>,
 ) {
@@ -159,7 +103,7 @@ fn smooth_local_player_visual(
     }
 }
 
-fn draw_local_player_authoritative_border(
+pub(super) fn draw_local_player_authoritative_border(
     snapshot: Res<NetworkSnapshot>,
     mut gizmos: Gizmos,
 ) {
@@ -175,7 +119,7 @@ fn draw_local_player_authoritative_border(
     );
 }
 
-fn sync_remote_player_squares(
+pub(super) fn sync_remote_player_squares(
     mut commands: Commands,
     snapshot: Res<NetworkSnapshot>,
     mut query: Query<(Entity, &RemotePlayerVisual, &mut Transform)>,

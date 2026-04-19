@@ -23,7 +23,6 @@ pub struct NetworkSnapshot {
 
 #[derive(Resource, Default)]
 pub struct LocalPlayerPrediction {
-    authoritative_position: Option<Vec2f>,
     predicted_position: Option<Vec2f>,
 }
 
@@ -33,7 +32,6 @@ impl LocalPlayerPrediction {
     }
 
     fn clear(&mut self) {
-        self.authoritative_position = None;
         self.predicted_position = None;
     }
 
@@ -42,16 +40,10 @@ impl LocalPlayerPrediction {
             return;
         };
 
-        self.predicted_position = Some(simulate_movement(
-            predicted_position,
-            intent.direction,
-            intent.delta_seconds,
-        ));
+        self.predicted_position = Some(simulate_movement(predicted_position, intent));
     }
 
     fn reconcile_authoritative_position(&mut self, authoritative_position: Vec2f) {
-        self.authoritative_position = Some(authoritative_position);
-
         let Some(predicted_position) = self.predicted_position else {
             self.predicted_position = Some(authoritative_position);
             return;
@@ -169,28 +161,20 @@ fn send_local_intent_to_server(
         return;
     };
 
-    let local_direction_x = axis(&keys, KeyCode::KeyA, KeyCode::KeyD);
-    let local_direction_y = axis(&keys, KeyCode::KeyS, KeyCode::KeyW);
-
-    let local_intent = MovementIntent {
-        direction: Vec2f {
-            x: local_direction_x,
-            y: local_direction_y,
-        },
-        delta_seconds: time.delta_secs(),
+    let raw_direction = Vec2f {
+        x: axis(&keys, KeyCode::KeyA, KeyCode::KeyD),
+        y: axis(&keys, KeyCode::KeyS, KeyCode::KeyW),
     };
-    if local_intent.direction.length_squared() <= f32::EPSILON {
+    let local_intent = MovementIntent::new(raw_direction, time.delta_secs());
+    if local_intent.is_idle() {
         return;
     }
 
+    let direction = local_intent.direction();
     if live
         .connection
         .reducers
-        .move_self(
-            local_intent.direction.x,
-            local_intent.direction.y,
-            local_intent.delta_seconds,
-        )
+        .move_self(direction.x, direction.y, local_intent.delta_seconds())
         .is_ok()
     {
         prediction.apply_local_intent(local_intent);
