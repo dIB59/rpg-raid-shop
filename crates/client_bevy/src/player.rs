@@ -7,6 +7,8 @@ use std::collections::{HashMap, HashSet};
 use crate::network::{LocalPlayerPrediction, NetworkSet, NetworkSnapshot};
 
 const LOCAL_PLAYER_VISUAL_SMOOTHNESS: f32 = 18.0;
+const LOCAL_PLAYER_SPRITE_SIZE: f32 = 24.0;
+const AUTHORITATIVE_BORDER_COLOR: Color = Color::srgb(1.0, 0.85, 0.2);
 
 #[derive(Component)]
 pub(crate) struct LocalPlayerVisual;
@@ -54,7 +56,11 @@ impl Plugin for PlayerPlugin {
         )
         .add_systems(
             Update,
-            (sync_local_player_render_state, smooth_local_player_visual)
+            (
+                sync_local_player_render_state,
+                smooth_local_player_visual,
+                draw_local_player_authoritative_border,
+            )
                 .chain()
                 .in_set(PlayerSet::Presentation),
         );
@@ -102,7 +108,10 @@ fn ensure_local_player_visual(
                 target_position: initial_position,
                 visual_position: initial_position,
             },
-            Sprite::from_color(player_color(local_player.id), Vec2::splat(24.0)),
+            Sprite::from_color(
+                player_color(local_player.id),
+                Vec2::splat(LOCAL_PLAYER_SPRITE_SIZE),
+            ),
             Transform::from_xyz(initial_position.x, initial_position.y, 10.0),
         ))
         .with_children(|parent| {
@@ -148,6 +157,22 @@ fn smooth_local_player_visual(
         transform.translation.x = render_state.visual_position.x;
         transform.translation.y = render_state.visual_position.y;
     }
+}
+
+fn draw_local_player_authoritative_border(
+    snapshot: Res<NetworkSnapshot>,
+    mut gizmos: Gizmos,
+) {
+    let Some(local_state) = &snapshot.local_player else {
+        return;
+    };
+
+    let position = vec2(local_state.position.x, local_state.position.y);
+    gizmos.rect_2d(
+        position,
+        Vec2::splat(LOCAL_PLAYER_SPRITE_SIZE),
+        AUTHORITATIVE_BORDER_COLOR,
+    );
 }
 
 fn sync_remote_player_squares(
