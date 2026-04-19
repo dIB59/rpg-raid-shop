@@ -2,6 +2,7 @@
 dev-up = "run -p xtask -- dev-up"
 dev-client = "run -p xtask -- dev-client"
 dev-down = "run -p xtask -- dev-down"
+dev-reset-database = "run -p xtask -- dev-reset-database"
 db-start = "run -p xtask -- db start"
 db-publish = "run -p xtask -- db publish"
 db-generate = "run -p xtask -- db generate"

@@ -38,6 +38,7 @@ fn run() -> Result<(), String> {
             client_run(&repo_root, &guest)
         }
         "dev-down" => dev_down(&repo_root),
+        "dev-reset-database" => dev_reset_database(&repo_root),
         "db" => run_db(&repo_root, &args[1..]),
         "client" => run_client(&repo_root, &args[1..]),
         "help" | "-h" | "--help" => {
@@ -112,6 +113,36 @@ fn dev_up(repo_root: &Path) -> Result<(), String> {
 fn dev_down(repo_root: &Path) -> Result<(), String> {
     stop_managed_process(&watch_pid_file(repo_root), "cargo-watch")?;
     stop_managed_process(&pid_file(repo_root), "SpacetimeDB")
+}
+
+fn dev_reset_database(repo_root: &Path) -> Result<(), String> {
+    let uri = env_or_default("SPACETIME_URI", DEFAULT_SPACETIME_URI);
+    let db = env_or_default("SPACETIME_DB", DEFAULT_SPACETIME_DB);
+    let (host, port) = host_port_from_uri(&uri)?;
+
+    if !is_port_open(&host, port) {
+        return Err(format!(
+            "SpacetimeDB is not reachable at {host}:{port}. Start it first with `cargo dev-up`."
+        ));
+    }
+
+    let spacetime = spacetime_bin()?;
+    println!("Deleting database `{db}` at {uri} ...");
+    run_command(
+        Command::new(&spacetime)
+            .current_dir(repo_root)
+            .arg("delete")
+            .arg(&db)
+            .arg("-s")
+            .arg(&uri)
+            .arg("-y"),
+    )?;
+
+    println!("Re-publishing module to recreate `{db}` ...");
+    db_publish(repo_root)?;
+
+    println!("Database `{db}` reset. Server process untouched; clients should reconnect.");
+    Ok(())
 }
 
 fn stop_managed_process(pid_file: &Path, label: &str) -> Result<(), String> {
@@ -541,6 +572,7 @@ fn print_usage() {
     println!("  dev-up");
     println!("  dev-client [GuestName]");
     println!("  dev-down");
+    println!("  dev-reset-database");
     println!();
     println!("Low-level commands:");
     println!("  db <subcommand>");
