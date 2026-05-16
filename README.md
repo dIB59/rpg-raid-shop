@@ -79,3 +79,13 @@ Both clients should connect to the same authoritative DB (`rpg-raid-shop-dev`) a
 - If you stop `cargo dev-up` with Ctrl-C, the watcher exits but the DB remains managed until `cargo dev-down`.
 
 To override DB storage location, set `SPACETIME_DATA_DIR`.
+
+## Windows setup
+
+The `cargo dev-*` lifecycle commands work on Windows (PowerShell or cmd). One-time prerequisites:
+
+1. Install the WASM target: `rustup target add wasm32-unknown-unknown`
+2. Install the SpacetimeDB CLI. xtask will auto-discover `spacetime.exe` if it lives in `%LOCALAPPDATA%\SpacetimeDB\` (the default installer location) or anywhere on `PATH`. Otherwise set `SPACETIME_BIN` to its full path.
+3. Install `cargo-watch`: `cargo install cargo-watch`
+
+After that, the same flow applies: `cargo dev-up`, then `cargo dev-client Guest_A` in another terminal. The first `dev-up` will publish the module and regenerate `crates/client_bevy/src/module_bindings/` against the installed SpacetimeDB SDK version.
