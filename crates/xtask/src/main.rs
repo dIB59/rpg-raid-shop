@@ -166,10 +166,7 @@ fn stop_managed_process(pid_file: &Path, label: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    let output = Command::new("kill")
-        .arg(pid.to_string())
-        .output()
-        .map_err(|error| error.to_string())?;
+    let output = kill_process(pid).map_err(|error| error.to_string())?;
     if !output.status.success() && process_is_running(pid) {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         if stderr.is_empty() {
@@ -482,6 +479,7 @@ fn is_port_open(host: &str, port: u16) -> bool {
     TcpStream::connect_timeout(&socket, std::time::Duration::from_millis(300)).is_ok()
 }
 
+#[cfg(unix)]
 fn process_is_running(pid: u32) -> bool {
     Command::new("kill")
         .arg("-0")
@@ -489,6 +487,42 @@ fn process_is_running(pid: u32) -> bool {
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn process_is_running(pid: u32) -> bool {
+    let Ok(output) = Command::new("tasklist")
+        .arg("/FI")
+        .arg(format!("PID eq {pid}"))
+        .arg("/NH")
+        .arg("/FO")
+        .arg("CSV")
+        .output()
+    else {
+        return false;
+    };
+
+    if !output.status.success() {
+        return false;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout.contains(&format!("\"{pid}\""))
+}
+
+#[cfg(unix)]
+fn kill_process(pid: u32) -> std::io::Result<std::process::Output> {
+    Command::new("kill").arg(pid.to_string()).output()
+}
+
+#[cfg(windows)]
+fn kill_process(pid: u32) -> std::io::Result<std::process::Output> {
+    Command::new("taskkill")
+        .arg("/F")
+        .arg("/T")
+        .arg("/PID")
+        .arg(pid.to_string())
+        .output()
 }
 
 fn run_command(command: &mut Command) -> Result<(), String> {
@@ -509,15 +543,31 @@ fn spacetime_bin() -> Result<String, String> {
         return Ok("spacetime".to_string());
     }
 
-    let local = format!(
-        "{}/.local/bin/spacetime",
-        env::var("HOME").unwrap_or_default()
-    );
-    if Path::new(&local).exists() {
-        return Ok(local);
+    for candidate in spacetime_default_locations() {
+        if Path::new(&candidate).exists() {
+            return Ok(candidate);
+        }
     }
 
     Err("SpacetimeDB CLI not found. Set SPACETIME_BIN or add 'spacetime' to PATH.".to_string())
+}
+
+#[cfg(unix)]
+fn spacetime_default_locations() -> Vec<String> {
+    let home = env::var("HOME").unwrap_or_default();
+    vec![format!("{home}/.local/bin/spacetime")]
+}
+
+#[cfg(windows)]
+fn spacetime_default_locations() -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+        paths.push(format!("{local_app_data}\\SpacetimeDB\\spacetime.exe"));
+    }
+    if let Ok(user_profile) = env::var("USERPROFILE") {
+        paths.push(format!("{user_profile}\\.local\\bin\\spacetime.exe"));
+    }
+    paths
 }
 
 fn cargo_watch_bin() -> Result<String, String> {
@@ -525,19 +575,30 @@ fn cargo_watch_bin() -> Result<String, String> {
         return Ok("cargo-watch".to_string());
     }
 
-    let local = format!(
-        "{}/.cargo/bin/cargo-watch",
-        env::var("HOME").unwrap_or_default()
-    );
-    if Path::new(&local).exists() {
-        return Ok(local);
+    for candidate in cargo_watch_default_locations() {
+        if Path::new(&candidate).exists() {
+            return Ok(candidate);
+        }
     }
 
     Err("cargo-watch not found. Install it with `cargo install cargo-watch`.".to_string())
 }
 
+#[cfg(unix)]
+fn cargo_watch_default_locations() -> Vec<String> {
+    let home = env::var("HOME").unwrap_or_default();
+    vec![format!("{home}/.cargo/bin/cargo-watch")]
+}
+
+#[cfg(windows)]
+fn cargo_watch_default_locations() -> Vec<String> {
+    let user_profile = env::var("USERPROFILE").unwrap_or_default();
+    vec![format!("{user_profile}\\.cargo\\bin\\cargo-watch.exe")]
+}
+
 fn command_exists(name: &str) -> bool {
-    Command::new("which")
+    let finder = if cfg!(windows) { "where" } else { "which" };
+    Command::new(finder)
         .arg(name)
         .output()
         .map(|output| output.status.success())
@@ -558,7 +619,9 @@ fn repo_root() -> Result<PathBuf, String> {
 }
 
 fn default_guest_name() -> String {
-    let host = env::var("HOSTNAME").unwrap_or_else(|_| "client".to_string());
+    let host = env::var("HOSTNAME")
+        .or_else(|_| env::var("COMPUTERNAME"))
+        .unwrap_or_else(|_| "client".to_string());
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
