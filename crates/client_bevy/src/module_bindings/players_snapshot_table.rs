@@ -78,9 +78,57 @@ impl<'ctx> __sdk::Table for PlayersSnapshotTableHandle<'ctx> {
     }
 }
 
+pub struct PlayersSnapshotUpdateCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableWithPrimaryKey for PlayersSnapshotTableHandle<'ctx> {
+    type UpdateCallbackId = PlayersSnapshotUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> PlayersSnapshotUpdateCallbackId {
+        PlayersSnapshotUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: PlayersSnapshotUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+/// Access to the `id` unique index on the table `players_snapshot`,
+/// which allows point queries on the field of the same name
+/// via the [`PlayersSnapshotIdUnique::find`] method.
+///
+/// Users are encouraged not to explicitly reference this type,
+/// but to directly chain method calls,
+/// like `ctx.db.players_snapshot().id().find(...)`.
+pub struct PlayersSnapshotIdUnique<'ctx> {
+    imp: __sdk::UniqueConstraintHandle<Player, u64>,
+    phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
+}
+
+impl<'ctx> PlayersSnapshotTableHandle<'ctx> {
+    /// Get a handle on the `id` unique index on the table `players_snapshot`.
+    pub fn id(&self) -> PlayersSnapshotIdUnique<'ctx> {
+        PlayersSnapshotIdUnique {
+            imp: self.imp.get_unique_constraint::<u64>("id"),
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'ctx> PlayersSnapshotIdUnique<'ctx> {
+    /// Find the subscribed row whose `id` column value is equal to `col_val`,
+    /// if such a row is present in the client cache.
+    pub fn find(&self, col_val: &u64) -> Option<Player> {
+        self.imp.find(col_val)
+    }
+}
+
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache.get_or_make_table::<Player>("players_snapshot");
+    _table.add_unique_constraint::<u64>("id", |row| &row.id);
 }
 
 #[doc(hidden)]

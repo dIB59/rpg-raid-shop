@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::features::player::{LocalPlayerVisual, PlayerSet};
 
 const CAMERA_FOLLOW_SMOOTHNESS: f32 = 8.0;
+const CAMERA_ZOOM_SCALE: f32 = 0.25;
 
 #[derive(Component)]
 pub struct FollowTarget {
@@ -34,7 +35,15 @@ impl Plugin for CameraFollowPlugin {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("PlayerCamera"), Camera2d, PlayerCamera));
+    commands.spawn((
+        Name::new("PlayerCamera"),
+        Camera2d,
+        Projection::from(OrthographicProjection {
+            scale: CAMERA_ZOOM_SCALE,
+            ..OrthographicProjection::default_2d()
+        }),
+        PlayerCamera,
+    ));
 }
 
 fn sync_camera_follow_target(

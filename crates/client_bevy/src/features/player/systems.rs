@@ -8,7 +8,9 @@ use crate::features::player::components::{
 };
 
 const LOCAL_PLAYER_VISUAL_SMOOTHNESS: f32 = 18.0;
-const LOCAL_PLAYER_SPRITE_SIZE: f32 = 24.0;
+const LOCAL_PLAYER_SPRITE_SIZE: f32 = 10.0;
+const LOCAL_PLAYER_OUTLINE_SIZE: f32 = 14.0;
+const REMOTE_PLAYER_SPRITE_SIZE: f32 = 10.0;
 const AUTHORITATIVE_BORDER_COLOR: Color = Color::srgb(1.0, 0.85, 0.2);
 
 pub(super) fn despawn_local_player_visual_when_missing(
@@ -62,7 +64,10 @@ pub(super) fn ensure_local_player_visual(
             parent.spawn((
                 Name::new("LocalPlayerOutline"),
                 LocalPlayerOutline,
-                Sprite::from_color(Color::srgb(1.0, 1.0, 1.0), Vec2::splat(30.0)),
+                Sprite::from_color(
+                    Color::srgb(1.0, 1.0, 1.0),
+                    Vec2::splat(LOCAL_PLAYER_OUTLINE_SIZE),
+                ),
                 Transform::from_xyz(0.0, 0.0, -0.1),
             ));
         });
@@ -152,7 +157,10 @@ pub(super) fn sync_remote_player_squares(
             RemotePlayerVisual {
                 id: remote_state.id,
             },
-            Sprite::from_color(player_color(remote_state.id), Vec2::splat(24.0)),
+            Sprite::from_color(
+                player_color(remote_state.id),
+                Vec2::splat(REMOTE_PLAYER_SPRITE_SIZE),
+            ),
             Transform::from_xyz(remote_state.position.x, remote_state.position.y, 10.0),
         ));
     }
