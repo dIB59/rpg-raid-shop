@@ -1,81 +1,52 @@
 # rpg-raid-shop
 
-Multiplayer 2D top-down RPG foundation using Rust, Bevy, LDTK, and SpacetimeDB.
+A [Bevy](https://bevyengine.org/) game with **hot-reloadable systems** via
+[`bevy_simple_subsecond_system`](https://crates.io/crates/bevy_simple_subsecond_system).
 
-## Workspace
+Edit the body of any system marked `#[hot]` while the game is running, hit save,
+and the change applies live — no restart, no lost game state.
 
-- `crates/client_bevy`: desktop Bevy client
-- `crates/shared`: protocol + domain types shared by client systems
-- `crates/spacetimedb_module`: SpacetimeDB tables, reducers, and public views
+## Prerequisites
 
-## Module tour
+- Rust (stable)
+- The Dioxus CLI, which provides the `dx` hot-patch runner:
 
-### `crates/shared`
+  ```sh
+  cargo install dioxus-cli@0.7.0-rc.1
+  ```
 
-- Defines shared DTOs and primitives (`PlayerId`, `Vec2f`, `PlayerState`, `MovementIntent`).
-- Acts as the wire/data contract between client runtime and authoritative backend reducers.
+  (Any `dx` 0.7.x works.)
 
-### `crates/spacetimedb_module`
+## Run with hot reloading
 
-- Owns authoritative mutable multiplayer state in the `Player` table.
-- Handles lifecycle reducers: client connect/disconnect and explicit guest registration.
-- Applies movement server-side via `move_self` with normalization and step clamping.
-- Exposes a public view (`players_snapshot`) consumed by subscribed clients.
+```sh
+BEVY_ASSET_ROOT="." dx serve --hot-patch
+```
 
-### `crates/client_bevy`
+Then open `src/main.rs`, tweak the math inside `animate_player` (e.g. change
+`* 200.0` to `* 400.0`), save, and watch the sprite update instantly.
 
-- `network.rs` opens DB connection, subscribes to table updates, and sends movement reducers.
-- `player.rs` mirrors `NetworkSnapshot` into Bevy entities for local and remote player visuals.
-- `main.rs` wires Bevy plugins (rendering, LDtk, network, and player systems).
+For faster compiles during development, dynamically link Bevy:
 
-### `crates/xtask`
+```sh
+BEVY_ASSET_ROOT="." dx serve --hot-patch --features dev
+```
 
-- Provides local development orchestration (`dev-up`, `dev-client`, `dev-down`).
-- Wraps publish/generate/config workflows for SpacetimeDB and generated bindings.
+## Run normally (no hot reload)
 
-### End-to-end runtime flow
+```sh
+cargo run
+```
 
-1. Client starts and calls `connect_guest`.
-2. Client sends input-derived movement intent each frame to `move_self`.
-3. SpacetimeDB applies authoritative movement and updates `Player` rows.
-4. Client subscription pulls latest rows and rebuilds `NetworkSnapshot`.
-5. Bevy visual systems update local/remote sprites from snapshot state.
+## How it works
 
-## Current milestone
+- `SimpleSubsecondPlugin` is added in `main()`.
+- Systems you want to edit live are annotated with `#[hot]`.
+- Only the **body** of a `#[hot]` system is hot-patched. Changing its
+  signature (params), adding/removing systems, or editing `setup` needs a
+  restart. For setup-style systems use `#[hot(rerun_on_hot_patch = true)]`.
 
-- SpacetimeDB authoritative `player` table + reducers (`connect_guest`, `move_self`)
-- Generated Rust client bindings in `crates/client_bevy/src/module_bindings`
-- Bevy client connected to live SpacetimeDB (table subscription + reducer calls)
-- Local and remote player squares synced from authoritative table state
+## Versions
 
-## Next implementation targets
-
-1. Add LDTK world loading and collision extraction.
-2. Add client-side interpolation/smoothing for remote players.
-3. Add combat reducers and hit resolution.
-
-## Fast local dev
-
-Prerequisite: install `cargo-watch` so lifecycle commands can keep the DB module published and bindings regenerated while you edit, with rebuild output visible in the `cargo dev-up` terminal.
-
-`cargo install cargo-watch`
-
-Use lifecycle cargo commands:
-
-1. Terminal 1: `cargo dev-up`
-2. Terminal 2: `cargo dev-client Guest_A`
-3. Terminal 3: `cargo dev-client Guest_B`
-4. When done: `cargo dev-down`
-
-Both clients should connect to the same authoritative DB (`rpg-raid-shop-dev`) and sync positions.
-
-### Lifecycle commands
-
-- `cargo dev-up` starts/uses local DB, publishes the module, regenerates Rust bindings, then stays attached to `cargo-watch` so rebuilds and errors are visible in that terminal.
-- `cargo dev-up` uses a persistent local data directory by default: `target/dev/spacetime-data`.
-- `cargo dev-client [Guest]` runs the client with an optional guest name.
-  - Examples: `cargo dev-client 1`, `cargo dev-client Guest_A`
-- `cargo dev-down` stops both the managed `cargo-watch` process and the managed DB process started by `cargo dev-up`.
-- If you stop `cargo dev-up` with Ctrl-C, the watcher exits but the DB remains managed until `cargo dev-down`.
-
-To override DB storage location, set `SPACETIME_DATA_DIR`.
+- `bevy = "0.16"`
+- `bevy_simple_subsecond_system = "0.2"` (the 0.2 line targets Bevy 0.16)
