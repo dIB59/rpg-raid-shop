@@ -45,8 +45,3 @@ cargo run
 - Only the **body** of a `#[hot]` system is hot-patched. Changing its
   signature (params), adding/removing systems, or editing `setup` needs a
   restart. For setup-style systems use `#[hot(rerun_on_hot_patch = true)]`.
-
-## Versions
-
-- `bevy = "0.16"`
-- `bevy_simple_subsecond_system = "0.2"` (the 0.2 line targets Bevy 0.16)
