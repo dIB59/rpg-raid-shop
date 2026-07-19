@@ -32,6 +32,7 @@ fn setup(mut commands: Commands) {
 
     commands.spawn((
         Player,
+        Velocity::default(),
         Dodge::default(),
         Sprite {
             color: Color::srgb(0.3, 0.6, 1.0),
@@ -41,6 +42,10 @@ fn setup(mut commands: Commands) {
         Transform::default(),
     ));
 }
+
+/// Current movement velocity, eased toward the input target for weighty feel.
+#[derive(Component, Default)]
+struct Velocity(Vec2);
 
 /// Active dodge: remaining seconds and the direction it was locked to on trigger.
 #[derive(Component, Default)]
@@ -52,17 +57,19 @@ struct Dodge {
 /// Hot-reloadable! Run the app with `dx serve --hot-patch`, then edit the body
 #[hot]
 fn move_player(
-    mut players: Query<(&mut Transform, &mut Dodge), With<Player>>,
+    mut players: Query<(&mut Transform, &mut Velocity, &mut Dodge), With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    const SPEED: f32 = 300.0; // units/sec
-    const DODGE_SPEED: f32 = 3500.0; // units/sec
+    const SPEED: f32 = 600.0; // units/sec, top speed
+    const ACCEL: f32 = 6000.0; // units/sec^2, ~0.1s to reach top speed
+    const DECEL: f32 = 9000.0; // units/sec^2, faster stop than start = weight without mush
+    const DODGE_SPEED: f32 = 2000.0; // units/sec
     const DODGE_TIME: f32 = 0.10; // seconds
-    const DODGE_STEER: f32 = 0.0; // 0 = locked direction, higher = more mid-dodge control
+    const DODGE_STEER: f32 = 1.0; // 0 = locked direction, higher = more mid-dodge control
 
     let dt = time.delta_secs();
-    let (mut transform, mut dodge) = players.single_mut().unwrap();
+    let (mut transform, mut vel, mut dodge) = players.single_mut().unwrap();
 
     let mut dir = Vec2::ZERO;
     if keys.pressed(KeyW) {
@@ -94,9 +101,12 @@ fn move_player(
         return;
     }
 
-    if dir != Vec2::ZERO {
-        let step = dir.normalize() * SPEED * dt;
-        transform.translation.x += step.x;
-        transform.translation.y += step.y;
-    }
+    // Ease velocity toward the input target: slow to start, quick to stop.
+    let target = dir.normalize_or_zero() * SPEED;
+    let rate = if target == Vec2::ZERO { DECEL } else { ACCEL };
+    let step = (target - vel.0).clamp_length_max(rate * dt);
+    vel.0 += step;
+
+    transform.translation.x += vel.0.x * dt;
+    transform.translation.y += vel.0.y * dt;
 }
