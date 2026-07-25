@@ -12,7 +12,7 @@ and the change applies live — no restart, no lost game state.
 - The Dioxus CLI, which provides the `dx` hot-patch runner:
 
   ```sh
-  cargo install dioxus-cli@0.7.0-rc.1
+  cargo install --locked dioxus-cli@0.7.9
   ```
 
   (Any `dx` 0.7.x works.)
