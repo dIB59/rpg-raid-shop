@@ -57,6 +57,9 @@ impl Default for Dodge {
 impl Dodge {
     fn tick(&mut self, dt: Duration) {
         self.duration.tick(dt);
+        if self.duration.just_finished() {
+            self.cooldown.reset();
+        }
         self.cooldown.tick(dt);
     }
 
@@ -74,7 +77,6 @@ impl Dodge {
             return;
         }
         self.duration.reset();
-        self.cooldown.reset();
         self.dir = dir.normalize();
     }
 
