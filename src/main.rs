@@ -1,11 +1,8 @@
 mod player;
 
-use bevy::{
-    input::keyboard::KeyCode::{KeyA, KeyD, KeyS, KeyW},
-    prelude::*,
-};
-use bevy_simple_subsecond_system::prelude::*;
 use crate::player::PlayerPlugin;
+use bevy::prelude::*;
+use bevy_simple_subsecond_system::prelude::*;
 
 fn main() {
     App::new()
@@ -16,7 +13,6 @@ fn main() {
             }),
             ..default()
         }))
-        // Enables hot-patching of any system annotated with `#[hot]`.
         .add_plugins(SimpleSubsecondPlugin::default())
         .add_plugins(PlayerPlugin)
         .run();
