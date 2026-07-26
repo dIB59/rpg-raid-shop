@@ -1,24 +1,21 @@
+use crate::camera::CameraTarget;
 use crate::dodge::Dodge;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Handle};
-use bevy::color::Color;
 use bevy::image::{Image, TextureAtlas};
 use bevy::input::ButtonInput;
 use bevy::math::{UVec2, Vec2};
 use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
-    Assets, Camera2d, Commands, Component, KeyCode, Query, Res, ResMut, Sprite, TextureAtlasLayout,
-    Time, Transform, default,
+    Assets, Commands, Component, KeyCode, Query, Res, ResMut, Sprite, TextureAtlasLayout, Time,
+    Transform,
 };
-use bevy::render::render_resource::TexelCopyBufferLayout;
 
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    commands.spawn(Camera2d);
-
     let texture: Handle<Image> =
         asset_server.load("Tiny Swords/Units/Blue Units/Warrior/Warrior_Idle.png");
     let layout = layouts.add(TextureAtlasLayout::from_grid(
@@ -33,6 +30,7 @@ fn setup(
         Player::default(),
         Velocity::default(),
         Dodge::default(),
+        CameraTarget,
         Sprite::from_atlas_image(texture, TextureAtlas::from(layout)),
         Transform::default(),
     ));
