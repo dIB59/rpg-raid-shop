@@ -1,6 +1,8 @@
+mod camera;
 mod dodge;
 mod player;
 
+use crate::camera::GameCameraPlugin;
 use crate::player::PlayerPlugin;
 use bevy::prelude::*;
 
@@ -19,5 +21,6 @@ fn main() {
                 .set(ImagePlugin::default_nearest()),
         )
         .add_plugins(PlayerPlugin)
+        .add_plugins(GameCameraPlugin)
         .run();
 }
