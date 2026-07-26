@@ -4,7 +4,7 @@ use bevy::input::ButtonInput;
 use bevy::math::Vec2;
 use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
-    Camera2d, Commands, Component, KeyCode, Query, Res, Sprite, Time, Transform, With, default,
+    Camera2d, Commands, Component, KeyCode, Query, Res, Sprite, Time, Transform, default,
 };
 use bevy::time::{Timer, TimerMode};
 use bevy_simple_subsecond_system::hot;
@@ -54,6 +54,40 @@ impl Default for Dodge {
     }
 }
 
+impl Dodge {
+    fn tick(&mut self, dt: Duration) {
+        self.duration.tick(dt);
+        self.cooldown.tick(dt);
+    }
+
+    fn is_active(&self) -> bool {
+        !self.duration.finished()
+    }
+
+    fn is_ready(&self) -> bool {
+        self.cooldown.finished()
+    }
+
+    /// Ask to start a dodge toward `dir`; silently ignored unless one is allowed right now.
+    fn request(&mut self, dir: Vec2) {
+        if self.is_active() || !self.is_ready() || dir == Vec2::ZERO {
+            return;
+        }
+        self.duration.reset();
+        self.cooldown.reset();
+        self.dir = dir.normalize();
+    }
+
+    fn just_ended(&self) -> bool {
+        self.duration.just_finished()
+    }
+
+    fn step(&mut self, input_dir: Vec2, dt: f32) -> Vec2 {
+        let heading = (self.dir + input_dir.normalize_or_zero() * self.steer).normalize_or_zero();
+        heading * self.speed * dt
+    }
+}
+
 #[derive(Component)]
 struct Player {
     pub speed: f32,
@@ -80,8 +114,7 @@ fn move_player(
     let dt = time.delta_secs();
     let (mut transform, mut vel, mut dodge, player) = players.single_mut().unwrap();
 
-    dodge.cooldown.tick(time.delta());
-    dodge.duration.tick(time.delta());
+    dodge.tick(time.delta());
 
     let mut dir = Vec2::ZERO;
     if keys.pressed(KeyW) {
@@ -97,23 +130,17 @@ fn move_player(
         dir.x -= 1.0;
     }
 
-    // Mid-dodge: dash along dodge.dir, optionally steered by live input, can't re-trigger.
-    if !dodge.duration.finished() {
-        let heading = (dodge.dir + dir.normalize_or_zero() * dodge.steer).normalize_or_zero();
-        let step = heading * dodge.speed * dt;
+    if keys.just_pressed(KeyCode::Space) {
+        dodge.request(dir);
+    }
+
+    if dodge.is_active() {
+        let step = dodge.step(dir, dt);
         transform.translation.x += step.x;
         transform.translation.y += step.y;
         return;
     }
 
-    if keys.just_pressed(KeyCode::Space) && dir != Vec2::ZERO && dodge.cooldown.finished() {
-        dodge.cooldown.reset();
-        dodge.duration.reset();
-        dodge.dir = dir.normalize();
-        return;
-    }
-
-    // Ease velocity toward the input target: slow to start, quick to stop.
     let target = dir.normalize_or_zero() * player.speed;
     let rate = if target == Vec2::ZERO {
         player.deceleration
