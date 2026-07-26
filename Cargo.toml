@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = "0.16"
-bevy_simple_subsecond_system = "0.2"
+bevy = "0.19"
 
 # Optional: faster compiles by dynamically linking Bevy during development.
 # Enable with `--features dev` (or run via `dx serve --hot-patch --features dev`).

@@ -3,7 +3,6 @@ mod player;
 
 use crate::player::PlayerPlugin;
 use bevy::prelude::*;
-use bevy_simple_subsecond_system::prelude::*;
 
 fn main() {
     App::new()
@@ -18,7 +17,6 @@ fn main() {
                 })
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins(SimpleSubsecondPlugin::default())
         .add_plugins(PlayerPlugin)
         .run();
 }

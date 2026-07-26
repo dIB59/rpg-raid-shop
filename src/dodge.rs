@@ -39,11 +39,11 @@ impl Dodge {
     }
 
     pub fn is_active(&self) -> bool {
-        !self.duration.finished()
+        !self.duration.is_finished()
     }
 
     fn is_ready(&self) -> bool {
-        self.cooldown.finished()
+        self.cooldown.is_finished()
     }
 
     /// Ask to start a dodge toward `dir`; silently ignored unless one is allowed right now.

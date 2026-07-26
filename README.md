@@ -1,10 +1,10 @@
 # rpg-raid-shop
 
-A [Bevy](https://bevyengine.org/) game with **hot-reloadable systems** via
-[`bevy_simple_subsecond_system`](https://crates.io/crates/bevy_simple_subsecond_system).
+A [Bevy](https://bevyengine.org/) game using Bevy's built-in **hot patching**
+(the `hotpatching` cargo feature, powered by Dioxus's subsecond).
 
-Edit the body of any system marked `#[hot]` while the game is running, hit save,
-and the change applies live — no restart, no lost game state.
+Edit the body of any system while the game is running, hit save, and the
+change applies live — no restart, no lost game state.
 
 ## Prerequisites
 
@@ -20,16 +20,18 @@ and the change applies live — no restart, no lost game state.
 ## Run with hot reloading
 
 ```sh
-BEVY_ASSET_ROOT="." dx serve --hot-patch
+just dev
+# or directly:
+BEVY_ASSET_ROOT="." dx serve --hot-patch --features bevy/hotpatching
 ```
 
-Then open `src/main.rs`, tweak the math inside `animate_player` (e.g. change
-`* 200.0` to `* 400.0`), save, and watch the sprite update instantly.
+Then open `src/player.rs`, tweak the math inside `move_player`, save, and
+watch the change apply instantly.
 
-For faster compiles during development, dynamically link Bevy:
+For faster rebuilds, dynamically link Bevy as well:
 
 ```sh
-BEVY_ASSET_ROOT="." dx serve --hot-patch --features dev
+just dev-fast
 ```
 
 ## Run normally (no hot reload)
@@ -38,10 +40,14 @@ BEVY_ASSET_ROOT="." dx serve --hot-patch --features dev
 cargo run
 ```
 
+The `hotpatching` feature is only passed on the `dx serve` command line, so
+normal and release builds carry none of the hot-patching machinery.
+
 ## How it works
 
-- `SimpleSubsecondPlugin` is added in `main()`.
-- Systems you want to edit live are annotated with `#[hot]`.
-- Only the **body** of a `#[hot]` system is hot-patched. Changing its
-  signature (params), adding/removing systems, or editing `setup` needs a
-  restart. For setup-style systems use `#[hot(rerun_on_hot_patch = true)]`.
+- With `bevy/hotpatching` enabled, **every system** is hot-patchable — no
+  attribute or plugin needed.
+- Only system **bodies** are hot-patched. Changing a system's signature
+  (params), adding/removing systems, or editing `setup` needs a restart.
+- Limitations: only code in the binary crate is patched, patched systems run
+  as exclusive systems (no parallelism), and Wasm is not supported.

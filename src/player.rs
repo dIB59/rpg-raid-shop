@@ -7,7 +7,6 @@ use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
     Camera2d, Commands, Component, KeyCode, Query, Res, Sprite, Time, Transform, default,
 };
-use bevy_simple_subsecond_system::hot;
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
@@ -45,7 +44,6 @@ impl Default for Player {
     }
 }
 
-#[hot]
 fn move_player(
     mut players: Query<(&mut Transform, &mut Velocity, &mut Dodge, &Player)>,
     keys: Res<ButtonInput<KeyCode>>,
