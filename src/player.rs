@@ -89,7 +89,10 @@ impl Dodge {
     fn step(&mut self, input_dir: Vec2, dt: f32) -> Vec2 {
         let input = input_dir.normalize_or_zero();
         if input != Vec2::ZERO {
-            let turn = self.dir.angle_to(input).clamp(-self.turn_rate * dt, self.turn_rate * dt);
+            let turn = self
+                .dir
+                .angle_to(input)
+                .clamp(-self.turn_rate * dt, self.turn_rate * dt);
             self.dir = Vec2::from_angle(turn).rotate(self.dir);
         }
         self.dir * self.speed * dt
