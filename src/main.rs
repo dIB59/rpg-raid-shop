@@ -1,3 +1,4 @@
+mod dodge;
 mod player;
 
 use crate::player::PlayerPlugin;
