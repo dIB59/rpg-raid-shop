@@ -33,9 +33,11 @@ struct Velocity(Vec2);
 struct Dodge {
     duration: Timer,
     cooldown: Timer,
+    /// Current travel direction; rotates toward live input while dashing.
     dir: Vec2,
     speed: f32,
-    steer: f32,
+    /// Max steering speed in radians/sec (0 = locked dash).
+    turn_rate: f32,
 }
 
 impl Default for Dodge {
@@ -49,7 +51,7 @@ impl Default for Dodge {
             cooldown,
             dir: Vec2::ZERO,
             speed: 2000.0,
-            steer: 1.0,
+            turn_rate: 6.0,
         }
     }
 }
@@ -85,8 +87,12 @@ impl Dodge {
     }
 
     fn step(&mut self, input_dir: Vec2, dt: f32) -> Vec2 {
-        let heading = (self.dir + input_dir.normalize_or_zero() * self.steer).normalize_or_zero();
-        heading * self.speed * dt
+        let input = input_dir.normalize_or_zero();
+        if input != Vec2::ZERO {
+            let turn = self.dir.angle_to(input).clamp(-self.turn_rate * dt, self.turn_rate * dt);
+            self.dir = Vec2::from_angle(turn).rotate(self.dir);
+        }
+        self.dir * self.speed * dt
     }
 }
 
