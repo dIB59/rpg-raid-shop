@@ -40,9 +40,13 @@ struct Dodge {
 
 impl Default for Dodge {
     fn default() -> Self {
+        let mut duration = Timer::from_seconds(0.2, TimerMode::Once);
+        duration.tick(duration.duration());
+        let mut cooldown = Timer::from_seconds(1.1, TimerMode::Once);
+        cooldown.tick(cooldown.duration());
         Self {
-            duration: Timer::from_seconds(0.2, TimerMode::Once),
-            cooldown: Timer::from_seconds(1.0, TimerMode::Once),
+            duration,
+            cooldown,
             dir: Vec2::ZERO,
             speed: 2000.0,
             steer: 1.0,
