@@ -69,7 +69,6 @@ impl Default for Player {
     }
 }
 
-/// Hot-reloadable! Run the app with `dx serve --hot-patch`, then edit the body
 #[hot]
 fn move_player(
     mut players: Query<(&mut Transform, &mut Velocity, &mut Dodge, &Player)>,
