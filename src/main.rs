@@ -11,6 +11,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "RPG Raid Shop".into(),
+                        name: Some("rpg-raid-shop".to_string()),
                         ..default()
                     }),
                     ..default()
