@@ -26,11 +26,9 @@ fn setup(mut commands: Commands) {
     ));
 }
 
-/// Current movement velocity, eased toward the input target for weighty feel.
 #[derive(Component, Default)]
 struct Velocity(Vec2);
 
-/// Active dodge: remaining seconds and the direction it was locked to on trigger.
 #[derive(Component)]
 struct Dodge {
     duration: Timer,
