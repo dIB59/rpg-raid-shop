@@ -24,7 +24,7 @@ impl Default for Aggro {
     }
 }
 
-/// Steers every [`Aggro`] character toward the nearest hostile.
+/// Steers every [`Aggro`] character toward the nearest entity it is hostile to.
 fn chase(
     time: Res<Time>,
     mut movers: Query<(
@@ -74,12 +74,13 @@ fn spawn_transform() -> Transform {
     Transform::from_xyz(x, y, 0.0)
 }
 
-fn spawn_hostiles(
+fn spawn_non_player_character(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let texture = asset_server.load("Tiny Swords/Units/Red Units/Warrior/Warrior_Idle.png");
+    let transform = spawn_transform();
     for _ in 0..3 {
         commands.spawn((
             Character::default(),
@@ -87,7 +88,7 @@ fn spawn_hostiles(
             Faction::Hostile,
             Health(100.0),
             Velocity::default(),
-            spawn_transform(),
+            transform,
             Animation::from_grid(
                 &mut layouts,
                 texture.clone(),
@@ -100,11 +101,11 @@ fn spawn_hostiles(
     }
 }
 
-pub struct EnemyPlugin;
+pub struct NonPlayerCharacterPlugin;
 
-impl Plugin for EnemyPlugin {
+impl Plugin for NonPlayerCharacterPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hostiles)
+        app.add_systems(Startup, spawn_non_player_character)
             // `chase` writes `Velocity`, so it owes `MovementSystems` the ordering.
             .add_systems(Update, chase.before(MovementSystems));
     }

@@ -2,16 +2,16 @@ mod animation;
 mod camera;
 mod character;
 mod dodge;
-mod enemy;
 mod faction;
 mod health;
 mod movement;
+mod non_player_character;
 mod player;
 
 use crate::animation::AnimationPlugin;
 use crate::camera::GameCameraPlugin;
-use crate::enemy::EnemyPlugin;
 use crate::movement::MovementPlugin;
+use crate::non_player_character::NonPlayerCharacterPlugin;
 use crate::player::PlayerPlugin;
 use bevy::prelude::*;
 
@@ -33,6 +33,6 @@ fn main() {
         .add_plugins(GameCameraPlugin)
         .add_plugins(AnimationPlugin)
         .add_plugins(MovementPlugin)
-        .add_plugins(EnemyPlugin)
+        .add_plugins(NonPlayerCharacterPlugin)
         .run();
 }
