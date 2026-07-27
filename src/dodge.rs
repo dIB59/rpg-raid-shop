@@ -15,7 +15,7 @@ pub struct Dodge {
 
 impl Default for Dodge {
     fn default() -> Self {
-        let mut duration = Timer::from_seconds(0.2, TimerMode::Once);
+        let mut duration = Timer::from_seconds(0.1, TimerMode::Once);
         duration.tick(duration.duration());
         let mut cooldown = Timer::from_seconds(1.1, TimerMode::Once);
         cooldown.tick(cooldown.duration());
@@ -55,11 +55,13 @@ impl Dodge {
         self.dir = dir.normalize();
     }
 
-    fn just_ended(&self) -> bool {
+    pub fn just_ended(&self) -> bool {
         self.duration.just_finished()
     }
 
-    pub fn step(&mut self, input_dir: Vec2, dt: f32) -> Vec2 {
+    /// Dash velocity in units/sec, after steering toward `input_dir`.
+    /// `dt` only bounds the steering rate; the caller integrates the result.
+    pub fn velocity(&mut self, input_dir: Vec2, dt: f32) -> Vec2 {
         let input = input_dir.normalize_or_zero();
         if input != Vec2::ZERO {
             let turn = self
@@ -68,6 +70,6 @@ impl Dodge {
                 .clamp(-self.turn_rate * dt, self.turn_rate * dt);
             self.dir = Vec2::from_angle(turn).rotate(self.dir);
         }
-        self.dir * self.speed * dt
+        self.dir * self.speed
     }
 }
