@@ -1,4 +1,4 @@
 use bevy::prelude::Component;
 
 #[derive(Component)]
-struct Health(f32);
+pub struct Health(pub f32);
