@@ -1,14 +1,14 @@
+use crate::animation::{Animation, AnimationMode};
 use crate::camera::CameraTarget;
 use crate::dodge::Dodge;
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Handle};
-use bevy::image::{Image, TextureAtlas};
+use bevy::image::Image;
 use bevy::input::ButtonInput;
 use bevy::math::{UVec2, Vec2};
 use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
-    Assets, Commands, Component, KeyCode, Query, Res, ResMut, Sprite, TextureAtlasLayout, Time,
-    Transform,
+    Assets, Commands, Component, KeyCode, Query, Res, ResMut, TextureAtlasLayout, Time, Transform,
 };
 
 fn setup(
@@ -18,21 +18,20 @@ fn setup(
 ) {
     let texture: Handle<Image> =
         asset_server.load("Tiny Swords/Units/Blue Units/Warrior/Warrior_Idle.png");
-    let layout = layouts.add(TextureAtlasLayout::from_grid(
-        UVec2::new(192, 192),
-        8,
-        1,
-        None,
-        None,
-    ));
-
     commands.spawn((
         Player::default(),
         Velocity::default(),
         Dodge::default(),
         CameraTarget,
-        Sprite::from_atlas_image(texture, TextureAtlas::from(layout)),
         Transform::default(),
+        Animation::from_grid(
+            &mut layouts,
+            texture,
+            UVec2::splat(192),
+            8,
+            0.09,
+            AnimationMode::Repeating,
+        ),
     ));
 }
 
