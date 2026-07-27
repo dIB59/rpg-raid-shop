@@ -3,7 +3,7 @@ install:
 
 # Run the game with hot patching enabled
 dev:
-    BEVY_ASSET_ROOT="." dx serve --hot-patch --features bevy/hotpatching
+    BEVY_ASSET_ROOT="." dx serve --hot-patch --features bevy/hotpatching --features dev
 
 # Hot patching + dynamically linked Bevy for faster rebuilds
 dev-fast:
