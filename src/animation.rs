@@ -144,11 +144,14 @@ impl Animation {
             return None;
         }
 
-        if self.clip.is_finished() && matches!(self.mode, AnimationMode::Repeating) {
-            self.clip.reset();
+        if self.clip.is_finished() {
+            match self.mode {
+                AnimationMode::Repeating => self.clip.reset(),
+                AnimationMode::Once => return None,
+            }
         }
 
-        self.frame = self.clip.next().expect("Unable to tick animation");
+        self.frame = self.clip.next().expect("clip refilled above");
         Some(self.frame)
     }
 }
