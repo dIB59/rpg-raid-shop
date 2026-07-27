@@ -1,6 +1,7 @@
 use crate::animation::{Animation, AnimationMode};
 use crate::camera::CameraTarget;
 use crate::dodge::Dodge;
+use crate::movement::{MovementSystems, Velocity};
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Handle};
 use bevy::image::Image;
@@ -8,7 +9,8 @@ use bevy::input::ButtonInput;
 use bevy::math::{UVec2, Vec2};
 use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
-    Assets, Commands, Component, KeyCode, Query, Res, ResMut, TextureAtlasLayout, Time, Transform,
+    Assets, Commands, Component, IntoScheduleConfigs, KeyCode, Query, Res, ResMut,
+    TextureAtlasLayout, Time, Transform,
 };
 
 fn setup(
@@ -35,9 +37,6 @@ fn setup(
     ));
 }
 
-#[derive(Component, Default)]
-struct Velocity(Vec2);
-
 #[derive(Component)]
 struct Player {
     pub speed: f32,
@@ -55,39 +54,39 @@ impl Default for Player {
     }
 }
 
+fn input_dir(keys: &ButtonInput<KeyCode>) -> Vec2 {
+    Vec2::new(
+        (keys.pressed(KeyD) as i8 - keys.pressed(KeyA) as i8) as f32,
+        (keys.pressed(KeyW) as i8 - keys.pressed(KeyS) as i8) as f32,
+    )
+}
+
 fn move_player(
-    mut players: Query<(&mut Transform, &mut Velocity, &mut Dodge, &Player)>,
+    mut players: Query<(&mut Velocity, &mut Dodge, &Player)>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
-    let (mut transform, mut vel, mut dodge, player) = players.single_mut().unwrap();
+    let Ok((mut vel, mut dodge, player)) = players.single_mut() else {
+        return;
+    };
 
     dodge.tick(time.delta());
 
-    let mut dir = Vec2::ZERO;
-    if keys.pressed(KeyW) {
-        dir.y += 1.0;
-    }
-    if keys.pressed(KeyD) {
-        dir.x += 1.0;
-    }
-    if keys.pressed(KeyS) {
-        dir.y -= 1.0;
-    }
-    if keys.pressed(KeyA) {
-        dir.x -= 1.0;
-    }
+    let dir = input_dir(&keys);
 
     if keys.just_pressed(KeyCode::Space) {
         dodge.request(dir);
     }
 
     if dodge.is_active() {
-        let step = dodge.step(dir, dt);
-        transform.translation.x += step.x;
-        transform.translation.y += step.y;
+        **vel = dodge.velocity(dir, dt);
         return;
+    }
+
+    // Coming out of a dash, shed the dash speed so the player doesn't slide.
+    if dodge.just_ended() {
+        **vel = vel.clamp_length_max(player.speed);
     }
 
     let target = dir.normalize_or_zero() * player.speed;
@@ -96,11 +95,7 @@ fn move_player(
     } else {
         player.acceleration
     };
-    let step = (target - vel.0).clamp_length_max(rate * dt);
-    vel.0 += step;
-
-    transform.translation.x += vel.0.x * dt;
-    transform.translation.y += vel.0.y * dt;
+    **vel = vel.move_towards(target, rate * dt);
 }
 
 #[derive(Default)]
@@ -108,6 +103,6 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, move_player);
+            .add_systems(Update, move_player.before(MovementSystems));
     }
 }
