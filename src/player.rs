@@ -1,7 +1,9 @@
 use crate::animation::{Animation, AnimationMode};
 use crate::camera::CameraTarget;
+use crate::character::Character;
 use crate::dodge::Dodge;
 use crate::faction::Faction;
+use crate::health::Health;
 use crate::movement::{MovementSystems, Velocity};
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Handle};
@@ -11,7 +13,7 @@ use bevy::math::{UVec2, Vec2};
 use bevy::prelude::KeyCode::{KeyA, KeyD, KeyS, KeyW};
 use bevy::prelude::{
     Assets, Commands, Component, IntoScheduleConfigs, KeyCode, Query, Res, ResMut,
-    TextureAtlasLayout, Time, Transform,
+    TextureAtlasLayout, Time, Transform, With,
 };
 
 fn setup(
@@ -22,7 +24,9 @@ fn setup(
     let texture: Handle<Image> =
         asset_server.load("Tiny Swords/Units/Blue Units/Warrior/Warrior_Idle.png");
     commands.spawn((
-        Player::default(),
+        Player,
+        player_stats(),
+        Health(100.0),
         Velocity::default(),
         Dodge::default(),
         CameraTarget,
@@ -39,20 +43,16 @@ fn setup(
     ));
 }
 
+/// Marks the input-driven character. Stats live on [`Character`]; this is only
+/// the "keyboard drives this one" flag.
 #[derive(Component)]
-struct Player {
-    pub speed: f32,
-    pub acceleration: f32,
-    pub deceleration: f32,
-}
+struct Player;
 
-impl Default for Player {
-    fn default() -> Self {
-        Self {
-            speed: 600.0,
-            acceleration: 6000.0,
-            deceleration: 9000.0,
-        }
+fn player_stats() -> Character {
+    Character {
+        speed: 600.0,
+        acceleration: 6000.0,
+        deceleration: 9000.0,
     }
 }
 
@@ -64,12 +64,12 @@ fn input_dir(keys: &ButtonInput<KeyCode>) -> Vec2 {
 }
 
 fn move_player(
-    mut players: Query<(&mut Velocity, &mut Dodge, &Player)>,
+    mut players: Query<(&mut Velocity, &mut Dodge, &Character), With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
-    let Ok((mut vel, mut dodge, player)) = players.single_mut() else {
+    let Ok((mut vel, mut dodge, character)) = players.single_mut() else {
         return;
     };
 
@@ -88,14 +88,14 @@ fn move_player(
 
     // Coming out of a dash, shed the dash speed so the player doesn't slide.
     if dodge.just_ended() {
-        **vel = vel.clamp_length_max(player.speed);
+        **vel = vel.clamp_length_max(character.speed);
     }
 
-    let target = dir.normalize_or_zero() * player.speed;
+    let target = dir.normalize_or_zero() * character.speed;
     let rate = if target == Vec2::ZERO {
-        player.deceleration
+        character.deceleration
     } else {
-        player.acceleration
+        character.acceleration
     };
     **vel = vel.move_towards(target, rate * dt);
 }
