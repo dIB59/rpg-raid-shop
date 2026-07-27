@@ -1,6 +1,7 @@
 use crate::animation::{Animation, AnimationMode};
 use crate::camera::CameraTarget;
 use crate::dodge::Dodge;
+use crate::faction::Faction;
 use crate::movement::{MovementSystems, Velocity};
 use bevy::app::{App, Plugin, Startup, Update};
 use bevy::asset::{AssetServer, Handle};
@@ -26,6 +27,7 @@ fn setup(
         Dodge::default(),
         CameraTarget,
         Transform::default(),
+        Faction::Player,
         Animation::from_grid(
             &mut layouts,
             texture,
