@@ -1,7 +1,8 @@
 mod animation;
 mod camera;
+mod character;
 mod dodge;
-mod enemy;
+mod faction;
 mod health;
 mod movement;
 mod player;
