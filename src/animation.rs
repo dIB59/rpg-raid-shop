@@ -69,6 +69,8 @@ pub struct Animation {
     mode: AnimationMode,
     timer: Timer,
     frame: usize,
+    /// One frame *after* a [`AnimationMode::Once`] clip's last frame, so frame gets its full time on screen.
+    done: bool,
 }
 
 impl Animation {
@@ -83,6 +85,7 @@ impl Animation {
             mode,
             timer: Timer::from_seconds(secs_per_frame, TimerMode::Repeating),
             frame,
+            done: false,
         }
     }
 
@@ -131,10 +134,10 @@ impl Animation {
         (Sprite::from_atlas_image(image, atlas), self)
     }
 
-    /// `true` once a [`AnimationMode::Once`] animation has shown its last frame.
-    /// Always `false` while repeating.
+    /// `true` once a [`AnimationMode::Once`] animation has shown its last frame
+    /// for its full duration. Always `false` while repeating.
     pub fn is_finished(&self) -> bool {
-        matches!(self.mode, AnimationMode::Once) && self.clip.is_finished()
+        self.done
     }
 
     /// Advances playback, returning the new frame only on the ticks where it changed.
@@ -147,7 +150,10 @@ impl Animation {
         if self.clip.is_finished() {
             match self.mode {
                 AnimationMode::Repeating => self.clip.reset(),
-                AnimationMode::Once => return None,
+                AnimationMode::Once => {
+                    self.done = true;
+                    return None;
+                }
             }
         }
 
